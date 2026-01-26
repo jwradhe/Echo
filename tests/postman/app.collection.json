@@ -1,0 +1,107 @@
+{
+  "info": {
+    "name": "Echo (Newman) - Form flow",
+    "_postman_id": "11111111-1111-1111-1111-111111111111",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5001" },
+    { "key": "echoText", "value": "" }
+  ],
+  "item": [
+
+    {
+      "name": "1) POST /create_echo (expect 302 redirect)",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "echo", "value": "Newman Echo {{$timestamp}}", "type": "text" },
+            { "key": "status", "value": "published", "type": "text" }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/create_echo",
+          "host": ["{{baseUrl}}"],
+          "path": ["create_echo"]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Save echo text to use in later assertions",
+              "const txt = `Newman Echo ${Date.now()}`;",
+              "pm.collectionVariables.set('echo', txt);",
+              "",
+              "// Overwrite request body value (so it's unique per run)",
+              "pm.request.body.urlencoded.find(x => x.key === 'echo').value = txt;"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 302 (redirect)', function () {",
+              "  pm.expect(pm.response.code).to.eql(302);",
+              "});",
+              "",
+              "pm.test('Has Location header', function () {",
+              "  pm.expect(pm.response.headers.has('Location')).to.be.true;",
+              "});",
+              "",
+              "pm.test('Redirects to /dashboard (or includes it)', function () {",
+              "  const loc = pm.response.headers.get('Location') || '';",
+              "  pm.expect(loc).to.include('/dashboard');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "2) GET /dashboard (verify echo exists in HTML)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/dashboard",
+          "host": ["{{baseUrl}}"],
+          "path": ["dashboard"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response is HTML', function () {",
+              "  const ct = pm.response.headers.get('Content-Type') || '';",
+              "  pm.expect(ct.toLowerCase()).to.include('text/html');",
+              "});",
+              "",
+              "pm.test('Dashboard contains the created echo text', function () {",
+              "  const echoText = pm.collectionVariables.get('echoText');",
+              "  pm.expect(pm.response.text()).to.include(echoText);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

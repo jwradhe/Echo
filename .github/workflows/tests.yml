@@ -1,0 +1,61 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Python setup
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      # Node setup (Newman + Playwright)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      # Linting      
+      - name: Lint Python
+        run: npm run lint:py
+
+      - name: Lint JavaScript
+        run: npm run lint:js
+
+      # Start Flask server
+      - name: Start Flask server
+        run: |
+          flask --app app:create_app run --port 5001 &
+          sleep 5
+
+      # Run tests
+      - name: Run unit & integration tests (pytest)
+        run: pytest -q
+
+      - name: Run API tests (Newman)
+        run: npm run api-test
+
+      - name: Run E2E tests (Playwright)
+        run: npm run e2e

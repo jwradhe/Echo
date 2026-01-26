@@ -1,0 +1,289 @@
+/* ============================================================
+   Echo UI - style.css
+   Works with Bootstrap 5.3 (data-bs-theme light/dark)
+   ============================================================ */
+
+/* ---------- Theme tokens (LIGHT) ---------- */
+:root{
+  --echo-accent: #2f80ff;
+  --echo-accent-2: #7c3aed;
+
+  --echo-bg: #f5f7fb;
+  --echo-surface: rgba(255,255,255,0.86);
+  --echo-surface-solid: #ffffff;
+
+  --echo-text: #0f172a;
+  --echo-muted: #64748b;
+
+  --echo-border: rgba(15, 23, 42, 0.10);
+  --echo-shadow: 0 14px 40px rgba(2, 6, 23, 0.08);
+
+  --echo-radius: 18px;
+  --echo-radius-sm: 14px;
+}
+
+/* ---------- Theme tokens (DARK) ---------- */
+[data-bs-theme="dark"]{
+  --echo-bg: #0b1220;
+  --echo-surface: rgba(15, 23, 42, 0.70);
+  --echo-surface-solid: #0f172a;
+
+  --echo-text: #e5e7eb;
+  --echo-muted: #94a3b8;
+
+  --echo-border: rgba(148, 163, 184, 0.22);
+  --echo-shadow: 0 18px 55px rgba(0,0,0,0.35);
+}
+
+/* ---------- Base ---------- */
+html, body{ height: 100%; }
+
+body{
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(47,128,255,.10), transparent 60%),
+    radial-gradient(1000px 600px at 90% 0%, rgba(124,58,237,.10), transparent 55%),
+    var(--echo-bg);
+  color: var(--echo-text);
+}
+
+/* Make Bootstrap muted text match our token */
+.text-muted{
+  color: var(--echo-muted) !important;
+}
+
+/* ---------- Navbar ---------- */
+.navbar{
+  backdrop-filter: blur(8px);
+}
+.navbar .navbar-brand{
+  letter-spacing: .2px;
+}
+.brand-dot{
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--echo-accent), var(--echo-accent-2));
+  box-shadow: 0 10px 24px rgba(47,128,255,.20);
+}
+
+/* Remove caret from dropdown toggle */
+.no-caret::after{ display: none !important; }
+
+/* ---------- Profile avatar button ---------- */
+.profile-avatar{
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #fff;
+  background: linear-gradient(135deg, var(--echo-accent), var(--echo-accent-2));
+  box-shadow: 0 10px 22px rgba(124,58,237,.18);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+[data-bs-theme="dark"] .profile-avatar{
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+/* ---------- Buttons ---------- */
+.btn-echo{
+  background: linear-gradient(135deg, var(--echo-accent), var(--echo-accent-2));
+  border: 0;
+  color: #fff;
+  border-radius: 999px;
+  padding: .55rem 1rem;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(47,128,255,.18);
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
+}
+.btn-echo:hover{
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px rgba(47,128,255,.22);
+}
+.btn-echo:active{ transform: translateY(0); }
+
+#themeToggle{
+  border-radius: 999px;
+}
+
+/* ---------- Cards ---------- */
+.card{ border-radius: var(--echo-radius); }
+
+.echo-card{
+  background: var(--echo-surface);
+  border: 1px solid var(--echo-border);
+  border-radius: var(--echo-radius);
+  box-shadow: none;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.echo-card:hover{
+  transform: translateY(-2px);
+  box-shadow: var(--echo-shadow);
+  border-color: rgba(47,128,255,.25);
+}
+[data-bs-theme="dark"] .echo-card:hover{
+  border-color: rgba(47,128,255,.32);
+}
+
+/* ---------- Echo avatar (feed + modal) ---------- */
+.echo-avatar{
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #fff;
+  background: linear-gradient(135deg, var(--echo-accent), var(--echo-accent-2));
+  box-shadow: 0 10px 24px rgba(124,58,237,.18);
+}
+
+/* ---------- Echo body ---------- */
+.echo-body p{
+  color: var(--echo-text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---------- Echo footer actions ---------- */
+.echo-footer{
+  user-select: none;
+}
+.echo-footer span{
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .35rem .60rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: background .12s ease, border-color .12s ease, color .12s ease, transform .12s ease;
+  cursor: default;
+  color: var(--echo-muted);
+}
+.echo-footer span:hover{
+  background: rgba(47,128,255,.10);
+  border-color: rgba(47,128,255,.22);
+  color: var(--echo-text);
+  transform: translateY(-1px);
+}
+[data-bs-theme="dark"] .echo-footer span:hover{
+  background: rgba(47,128,255,.14);
+  border-color: rgba(47,128,255,.26);
+}
+
+/* ---------- Badges ---------- */
+.badge{
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+/* ---------- Modal + textarea ---------- */
+.modal-content{
+  border-radius: 22px;
+  background: var(--echo-surface-solid);
+}
+.echo-textarea{
+  border-radius: var(--echo-radius-sm);
+  border: 1px solid var(--echo-border);
+  background: rgba(255,255,255,0.92);
+  color: var(--echo-text);
+  resize: none;
+}
+[data-bs-theme="dark"] .echo-textarea{
+  background: rgba(15,23,42,0.55);
+}
+.echo-textarea:focus{
+  border-color: rgba(47,128,255,.50);
+  box-shadow: 0 0 0 .25rem rgba(47,128,255,.18);
+}
+
+/* ---------- Dropdown polish ---------- */
+.dropdown-menu{ border-radius: 16px; }
+.dropdown-menu .dropdown-item{
+  border-radius: 12px;
+  margin: 2px 6px;
+  width: calc(100% - 12px);
+}
+.dropdown-menu form{ margin: 0; }
+
+/* ---------- Mobile FAB ---------- */
+.echo-fab{
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+}
+
+/* ---------- Alerts (if you ever use them) ---------- */
+.alert{ border-radius: 14px; }
+
+/* ---------- Toasts ---------- */
+.toast{
+  border-radius: 16px;
+  background: var(--echo-surface-solid);
+}
+.toast .toast-body{ padding: .85rem 1rem; }
+.toast-container{ pointer-events: none; }
+.toast{ pointer-events: auto; }
+
+/* Optional: subtle colored left border by type (works if you add data attribute) */
+/*
+.toast[data-echo="success"]{ box-shadow: inset 3px 0 0 rgba(25,135,84,.9), 0 16px 38px rgba(2,6,23,.10); }
+.toast[data-echo="danger"]{  box-shadow: inset 3px 0 0 rgba(220,53,69,.9), 0 16px 38px rgba(2,6,23,.10); }
+.toast[data-echo="info"]{    box-shadow: inset 3px 0 0 rgba(13,110,253,.9), 0 16px 38px rgba(2,6,23,.10); }
+*/
+
+
+/* Make feed cards pop more in dark mode */
+
+[data-bs-theme="dark"] .echo-card {
+  background: linear-gradient(
+    180deg,
+    rgba(20, 30, 55, 0.92),
+    rgba(14, 20, 38, 0.92)
+  );
+
+  border: 1px solid rgba(148, 163, 184, 0.22);
+
+  box-shadow:
+    0 20px 50px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+[data-bs-theme="dark"] .echo-card:hover {
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow:
+    0 25px 70px rgba(0,0,0,0.65),
+    0 0 0 1px rgba(99,102,241,.15);
+}
+
+
+[data-bs-theme="dark"] .echo-body p{
+  color: rgba(229,231,235,0.92);
+}
+
+[data-bs-theme="dark"] .echo-footer span{
+  color: rgba(148,163,184,0.95);
+}
+
+/* Dark mode background separation */
+[data-bs-theme="dark"] body {
+  background:
+    radial-gradient(1000px 500px at 20% -10%, rgba(47,128,255,.12), transparent 60%),
+    radial-gradient(800px 500px at 90% 0%, rgba(124,58,237,.12), transparent 55%),
+    #060b17; /* 🔥 mörkare bas */
+}
