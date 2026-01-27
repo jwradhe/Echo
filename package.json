@@ -1,0 +1,40 @@
+{
+  "name": "echo",
+  "version": "1.0.0",
+  "description": "Echo - a lightweight social micro-blogging platform",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "start": "flask --app app:create_app run --port 5001",
+    "api-test": "newman run tests/postman/app.collection.json",
+    "e2e": "playwright test",
+    "test:all": "start-server-and-test start http://127.0.0.1:5001/ \"npm run api-test && npm run e2e\"",
+    "lint:py": "ruff check .",
+    "lint:js": "eslint .",
+    "lint": "npm run lint:js && npm run lint:py"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jwradhe/Echo"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jwradhe/Echo/issues"
+  },
+  "homepage": "https://github.com/jwradhe/Echo#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@eslint/markdown": "^7.5.1",
+    "@playwright/test": "^1.57.0",
+    "eslint": "^9.39.2",
+    "globals": "^16.5.0",
+    "newman": "^6.1.0",
+    "start-server-and-test": "^2.1.3",
+    "typescript-eslint": "^8.50.1"
+  }
+}
