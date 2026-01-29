@@ -1,0 +1,22 @@
+﻿##  Tester
+
+```bash
+# Skapa test-databas
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS EchoDB_test;"
+mysql -u root -p EchoDB_test < schema.sql
+cp .env.testing.example .env.testing
+
+# Unit- och integrationstester (Python)
+pytest
+
+# API-tester (Postman / Newman)
+npm run api-test
+
+# End-to-End tester (Playwright)
+npm run e2e
+
+# Köra alla tester
+npm run test:all
+```
+
+Se [TESTING.md](TESTING.md) för detaljer.

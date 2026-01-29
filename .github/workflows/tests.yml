@@ -8,6 +8,38 @@ jobs:
   tests:
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: EchoDB_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      FLASK_ENV: testing
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: test_password
+      MYSQL_DATABASE: EchoDB_test
+      MYSQL_POOL_SIZE: 1
+      MYSQL_POOL_MAX_OVERFLOW: 0
+      MYSQL_POOL_TIMEOUT: 30
+      FLASK_SECRET_KEY: test-secret-key
+      LOG_LEVEL: DEBUG
+      LOG_FORMAT: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+      PERMANENT_SESSION_LIFETIME_DAYS: 7
+      SESSION_COOKIE_SECURE: False
+      SESSION_COOKIE_HTTPONLY: True
+      SESSION_COOKIE_SAMESITE: Lax
+
     steps:
 
       - name: Checkout code
@@ -22,8 +54,10 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install -U pip
-          pip install -r requirements.txt
           pip install -r requirements-dev.txt
+
+      - name: Install Playwright browsers (Python)
+        run: python -m playwright install --with-deps
 
       # Node setup (Newman + Playwright)
       - name: Set up Node.js
@@ -34,8 +68,11 @@ jobs:
       - name: Install Node dependencies
         run: npm install
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+
+
+      # Database setup
+      - name: Initialize test database
+        run: mysql -h 127.0.0.1 -u root -ptest_password < schema.sql
 
       # Linting      
       - name: Lint Python
