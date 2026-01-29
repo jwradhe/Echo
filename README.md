@@ -42,19 +42,22 @@ Projektet använder MySQL 8.0+ med raw SQL queries.
 ## 🔎 Kodkvalitet (Lint)
 
 Projektet använder linting för att säkerställa konsekvent kodstil och upptäcka vanliga fel.
-```bash`n# Python
+
+```bash
+# Python
 npm run lint:py
 
-### JavaScript / TypeScript
+# JavaScript / TypeScript
 npm run lint:js
 
-### Linting på allt
+# Linting på allt
 npm run lint
 ```
 
 ## 🧪 Tester
 
-```bash`n# Unit- och integrationstester (Python):
+```bash
+# Unit- och integrationstester (Python):
 pytest
 
 # API-tester (Postman / Newman)

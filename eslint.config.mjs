@@ -16,6 +16,7 @@ export default defineConfig([
       "dist/**",
       "build/**",
       "venv/**",
+      ".venv/**",
       "*.min.js",
     ],
   },
