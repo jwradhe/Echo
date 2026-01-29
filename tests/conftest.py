@@ -2,22 +2,23 @@ import os
 import pytest
 
 # Configure test environment BEFORE any app imports
-os.environ['FLASK_ENV'] = 'testing'
-os.environ['FLASK_SECRET_KEY'] = 'test-secret-key-for-testing'
-os.environ['MYSQL_HOST'] = 'localhost'
-os.environ['MYSQL_PORT'] = '3306'
-os.environ['MYSQL_USER'] = 'root'
-os.environ['MYSQL_PASSWORD'] = 'administrator'
-os.environ['MYSQL_DATABASE'] = 'EchoDB_test'
-os.environ['MYSQL_POOL_SIZE'] = '1'
-os.environ['MYSQL_POOL_MAX_OVERFLOW'] = '0'
-os.environ['MYSQL_POOL_TIMEOUT'] = '30'
-os.environ['LOG_LEVEL'] = 'WARNING'  # Reduce log noise in tests
-os.environ['LOG_FORMAT'] = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-os.environ['PERMANENT_SESSION_LIFETIME_DAYS'] = '7'
-os.environ['SESSION_COOKIE_SECURE'] = 'False'
-os.environ['SESSION_COOKIE_HTTPONLY'] = 'True'
-os.environ['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# Use environment variables if set (for CI), otherwise use local defaults
+os.environ.setdefault('FLASK_ENV', 'testing')
+os.environ.setdefault('FLASK_SECRET_KEY', 'test-secret-key-for-testing')
+os.environ.setdefault('MYSQL_HOST', 'localhost')
+os.environ.setdefault('MYSQL_PORT', '3306')
+os.environ.setdefault('MYSQL_USER', 'root')
+os.environ.setdefault('MYSQL_PASSWORD', 'administrator')
+os.environ.setdefault('MYSQL_DATABASE', 'EchoDB_test')
+os.environ.setdefault('MYSQL_POOL_SIZE', '1')
+os.environ.setdefault('MYSQL_POOL_MAX_OVERFLOW', '0')
+os.environ.setdefault('MYSQL_POOL_TIMEOUT', '30')
+os.environ.setdefault('LOG_LEVEL', 'WARNING')  # Reduce log noise in tests
+os.environ.setdefault('LOG_FORMAT', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+os.environ.setdefault('PERMANENT_SESSION_LIFETIME_DAYS', '7')
+os.environ.setdefault('SESSION_COOKIE_SECURE', 'False')
+os.environ.setdefault('SESSION_COOKIE_HTTPONLY', 'True')
+os.environ.setdefault('SESSION_COOKIE_SAMESITE', 'Lax')
 
 # Now safe to import app
 from app import create_app
