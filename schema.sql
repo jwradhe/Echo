@@ -36,7 +36,7 @@ CREATE INDEX idx_users_deleted_by ON Users(deleted_by);
 CREATE INDEX idx_users_banned_by ON Users(banned_by);
 CREATE INDEX idx_users_is_banned ON Users(is_banned);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS Roles (
     role_id CHAR(36) PRIMARY KEY,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS Roles (
     updated_at DATETIME NOT NULL
 ) ENGINE=InnoDB;
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS UserRoles (
     user_id CHAR(36),
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS UserRoles (
 CREATE INDEX idx_userroles_user ON UserRoles(user_id);
 CREATE INDEX idx_userroles_role ON UserRoles(role_id);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS BanHistory (
     ban_id CHAR(36) PRIMARY KEY,
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS BanHistory (
 CREATE INDEX idx_banhistory_user ON BanHistory(user_id);
 CREATE INDEX idx_banhistory_moderator ON BanHistory(moderator_id);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS Posts (
     post_id CHAR(36) PRIMARY KEY,
@@ -92,7 +92,7 @@ CREATE INDEX idx_posts_user ON Posts(user_id);
 CREATE INDEX idx_posts_created_at ON Posts(created_at);
 CREATE INDEX idx_posts_deleted_by ON Posts(deleted_by);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS Replies (
     reply_id CHAR(36) PRIMARY KEY,
@@ -112,7 +112,7 @@ CREATE INDEX idx_replies_parent_post ON Replies(parent_post_id);
 CREATE INDEX idx_replies_parent_reply ON Replies(parent_reply_id);
 CREATE INDEX idx_replies_created_at ON Replies(created_at);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS UserGroups (
     group_id CHAR(36) PRIMARY KEY,
@@ -131,7 +131,7 @@ CREATE INDEX idx_usergroups_created_by ON UserGroups(created_by);
 CREATE INDEX idx_usergroups_origin_post ON UserGroups(origin_post_id);
 CREATE INDEX idx_usergroups_deleted_by ON UserGroups(deleted_by);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS GroupMembers (
     group_id CHAR(36),
@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS GroupMembers (
 
 CREATE INDEX idx_groupmembers_user ON GroupMembers(user_id);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS ReactionTypes (
     reaction_type_id CHAR(36) PRIMARY KEY,
@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS ReactionTypes (
     updated_at DATETIME NOT NULL
 ) ENGINE=InnoDB;
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS Reactions (
     reaction_id CHAR(36) PRIMARY KEY,
@@ -169,7 +169,7 @@ CREATE INDEX idx_reactions_post ON Reactions(post_id);
 CREATE INDEX idx_reactions_reply ON Reactions(reply_id);
 CREATE INDEX idx_reactions_type ON Reactions(reaction_type_id);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS Reposts (
     repost_id CHAR(36) PRIMARY KEY,
@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS Reposts (
 CREATE INDEX idx_reposts_user ON Reposts(user_id);
 CREATE INDEX idx_reposts_post ON Reposts(post_id);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS Followers (
     follower_id CHAR(36),
@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS Followers (
 CREATE INDEX idx_followers_follower ON Followers(follower_id);
 CREATE INDEX idx_followers_followed ON Followers(followed_id);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS Media (
     media_id CHAR(36) PRIMARY KEY,
@@ -214,7 +214,7 @@ CREATE INDEX idx_media_post ON Media(post_id);
 CREATE INDEX idx_media_reply ON Media(reply_id);
 CREATE INDEX idx_media_deleted_by ON Media(deleted_by);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS ModerationActions (
     action_id CHAR(36) PRIMARY KEY,
@@ -233,7 +233,7 @@ CREATE INDEX idx_modactions_post ON ModerationActions(post_id);
 CREATE INDEX idx_modactions_reply ON ModerationActions(reply_id);
 CREATE INDEX idx_modactions_user ON ModerationActions(user_id);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS Notifications (
     notification_id CHAR(36) PRIMARY KEY,
@@ -253,7 +253,7 @@ CREATE INDEX idx_notifications_post ON Notifications(post_id);
 CREATE INDEX idx_notifications_reply ON Notifications(reply_id);
 CREATE INDEX idx_notifications_is_read ON Notifications(is_read);
 
-------------------------------------------------------------
+-- ----------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS Mentions (
     mention_id CHAR(36) PRIMARY KEY,
