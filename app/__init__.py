@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, session, url_for, request, flash
 from pymysql import cursors
 from .config import get_config
-from .db import get_db, init_db, init_connection_pool, ensure_default_user
+from .db import get_db, init_connection_pool, ensure_default_user
 
 env = os.environ.get("FLASK_ENV", "development")
 

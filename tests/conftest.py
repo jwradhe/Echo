@@ -22,7 +22,6 @@ os.environ['SESSION_COOKIE_SAMESITE'] = 'Lax'
 # Now safe to import app
 from app import create_app
 from app.db import get_db
-import pymysql
 
 
 @pytest.fixture(scope="session")

@@ -1,6 +1,6 @@
 import pymysql
 from pymysql import cursors
-from flask import Flask, g
+from flask import Flask
 from contextlib import contextmanager
 from typing import Any, Generator, Optional
 import logging
