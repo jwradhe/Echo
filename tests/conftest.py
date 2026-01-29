@@ -33,8 +33,9 @@ def app():
     
     # Initialize database schema for tests
     with app.app_context():
-        from app.db import init_db
+        from app.db import init_db, ensure_default_user
         init_db(app)
+        ensure_default_user(app)
     
     yield app
 
