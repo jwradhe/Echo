@@ -1,4 +1,15 @@
 # =========================
+# Environment Configuration
+# =========================
+# NEVER commit actual credentials!
+# Use .env.example and .env.production.example as templates
+.env
+.env.development
+.env.testing
+.env.production
+.env.local
+
+# =========================
 # Python
 # =========================
 __pycache__/
@@ -7,7 +18,9 @@ __pycache__/
 
 # Virtual environments
 venv/
-.env/
+ENV/
+env/
+.venv
 
 # Pytest / coverage
 .pytest_cache/
@@ -15,9 +28,13 @@ venv/
 htmlcov/
 
 # =========================
-# SQLite
+# Database
 # =========================
 *.db
+*.sqlite
+*.sqlite3
+backup.sql
+*.bak
 
 # =========================
 # Node / Frontend tooling
@@ -35,3 +52,15 @@ playwright-report/
 # =========================
 .DS_Store
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
