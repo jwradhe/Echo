@@ -5,8 +5,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, session, url_for, request, flash
 from pymysql import cursors
-from .config import get_config
 from .db import get_db, init_connection_pool, ensure_default_user
+
+# Load base .env first so FLASK_ENV can be read from it if present.
+if Path(".env").exists():
+    load_dotenv(".env")
 
 env = os.environ.get("FLASK_ENV", "development")
 
@@ -15,10 +18,9 @@ if env == "testing":
 elif env != "development":
     env_file = f".env.{env}"
     if Path(env_file).exists():
-        load_dotenv(env_file)
-else:
-    if Path(".env").exists():
-        load_dotenv(".env")
+        load_dotenv(env_file, override=True)
+
+from .config import get_config
 
 logger = logging.getLogger(__name__)
 
