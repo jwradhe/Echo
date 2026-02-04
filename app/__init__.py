@@ -131,10 +131,6 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @app.route("/")
     def index():
-        return redirect(url_for("dashboard"))
-
-    @app.route("/dashboard", methods=["GET"])
-    def dashboard():
         try:
             with get_db(app) as conn:
                 cursor = conn.cursor(cursors.DictCursor)
@@ -149,12 +145,12 @@ def create_app(test_config: dict | None = None) -> Flask:
                     LIMIT 50;
                     """
                 )
-                posts = cursor.fetchall()
+                #posts = cursor.fetchall()
                 cursor.close()
             
             return render_template(
                 "index.html",
-                echoes=posts  # Keep variable name for template compatibility
+                posts=posts  # Keep variable name for template compatibility
             )
         except Exception as e:
             logger.error(f"Dashboard error: {e}")
@@ -191,12 +187,12 @@ def create_app(test_config: dict | None = None) -> Flask:
             logger.error(f"Error creating post: {e}")
             flash(f"Fel vid skapande av echo: {str(e)}", "danger")
         
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("/"))
     
     @app.route("/logout", methods=["POST"])
     def logout():
         session.clear()
         flash("Du har loggats ut.", "info")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("/"))
 
     return app
