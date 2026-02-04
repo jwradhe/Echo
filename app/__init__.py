@@ -129,6 +129,10 @@ def create_app(test_config: dict | None = None) -> Flask:
         except Exception as e:
             logger.error(f"Dashboard error: {e}")
             return f"<h1>Error loading dashboard</h1><p>{str(e)}</p>", 500
+
+    @app.route("/dashboard")
+    def dashboard():
+        return index()
     
     @app.route("/create_echo", methods=["POST"])
     def create_echo():
@@ -139,7 +143,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         if not content:
             flash("Echo krävs.", "danger")
-            return redirect(url_for("/"))
+            return redirect(url_for("index"))
 
         try:
             post_id = str(uuid4())
@@ -161,7 +165,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             logger.error(f"Error creating post: {e}")
             flash(f"Fel vid skapande av echo: {str(e)}", "danger")
         
-        return redirect(url_for("/"))
+        return redirect(url_for("index"))
 
     @app.route("/api/posts", methods=["POST"])
     def create_post_api():
@@ -203,6 +207,6 @@ def create_app(test_config: dict | None = None) -> Flask:
     def logout():
         session.clear()
         flash("Du har loggats ut.", "info")
-        return redirect(url_for("/"))
+        return redirect(url_for("index"))
 
     return app
