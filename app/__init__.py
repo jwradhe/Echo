@@ -143,7 +143,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         if not content:
             flash("Echo krävs.", "danger")
-            return redirect(url_for("index"))
+            return redirect(url_for("dashboard"))
 
         try:
             post_id = str(uuid4())
@@ -165,7 +165,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             logger.error(f"Error creating post: {e}")
             flash(f"Fel vid skapande av echo: {str(e)}", "danger")
         
-        return redirect(url_for("index"))
+        return redirect(url_for("dashboard"))
 
     @app.route("/api/posts", methods=["POST"])
     def create_post_api():
@@ -207,6 +207,6 @@ def create_app(test_config: dict | None = None) -> Flask:
     def logout():
         session.clear()
         flash("Du har loggats ut.", "info")
-        return redirect(url_for("index"))
+        return redirect(url_for("dashboard"))
 
     return app
