@@ -1,0 +1,54 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: echo_web
+    ports:
+      - "5001:5000"
+    env_file:
+      - .env
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+      - DATABASE_HOST=db
+      - DATABASE_USER=echo
+      - DATABASE_PASSWORD=changeme
+      - DATABASE_NAME=EchoDB
+    volumes:
+      - ./app:/code/app
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - echo_network
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: echo_db
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=EchoDB
+      - MYSQL_USER=echo
+      - MYSQL_PASSWORD=changeme
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - echo_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+
+networks:
+  echo_network:
+    driver: bridge
