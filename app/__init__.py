@@ -76,68 +76,6 @@ def create_app(test_config: dict | None = None) -> Flask:
         "avatar": "https://images.unsplash.com/photo-1701463387028-3947648f1337?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=100"
     }
 
-    posts = [
-        {
-            "id": 1,
-            "author": {
-                "name": "Echo",
-                "username": "echo",
-                "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
-            },
-            "content": "Welcome to Echo! Share your thoughts with the world.",
-            "timestamp": "2026-01-28T12:58:00Z",
-            "likes": 0,
-            "comments": 0,
-            "bookmarks": 0,
-            "isLiked": False,
-            "isBookmarked": False
-        },
-        {
-            "id": 2,
-            "author": {
-                "name": "Sarah Johnson",
-                "username": "sarahj",
-                "avatar": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop"
-            },
-            "content": "Just launched my new portfolio website! 🚀 Check it out and let me know what you think. Built with Flask and Bootstrap.",
-            "timestamp": "2026-01-28T11:30:00Z",
-            "likes": 124,
-            "comments": 15,
-            "bookmarks": 23,
-            "isLiked": False,
-            "isBookmarked": False
-        },
-        {
-            "id": 3,
-            "author": {
-                "name": "Alex Chen",
-                "username": "alexchen",
-                "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"
-            },
-            "content": "Hot take: Python has made me a better developer. The simplicity and readability really help! 💯",
-            "timestamp": "2026-01-28T10:15:00Z",
-            "likes": 89,
-            "comments": 34,
-            "bookmarks": 12,
-            "isLiked": True,
-            "isBookmarked": False
-        },
-        {
-            "id": 4,
-            "author": {
-                "name": "Emma Rodriguez",
-                "username": "emmarodriguez",
-                "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop"
-            },
-            "content": "Working on an exciting new AI project. Can't wait to share more details soon! The future of technology is here.",
-            "timestamp": "2026-01-28T09:00:00Z",
-            "likes": 256,
-            "comments": 67,
-            "bookmarks": 45,
-            "isLiked": False,
-            "isBookmarked": True
-        }
-    ]
     # =================================================
     # Routes
     # =================================================
