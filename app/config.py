@@ -25,7 +25,7 @@ class Config:
     MYSQL_HOST = os.environ.get("MYSQL_HOST", "localhost")
     MYSQL_PORT = int(os.environ.get("MYSQL_PORT", "3306"))
     MYSQL_USER = os.environ.get("MYSQL_USER", "root")
-    MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD", "changeme")
+    MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD", "")
     MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE", "EchoDB")
     
     # Connection Pool Configuration
@@ -43,7 +43,7 @@ class Config:
         host = os.environ.get("MYSQL_HOST", "localhost")
         port = os.environ.get("MYSQL_PORT", "3306")
         user = os.environ.get("MYSQL_USER", "root")
-        password = os.environ.get("MYSQL_PASSWORD", "changeme")
+        password = os.environ.get("MYSQL_PASSWORD", "")
         database = os.environ.get("MYSQL_DATABASE", "EchoDB")
         return f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
 

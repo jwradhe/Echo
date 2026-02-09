@@ -15,7 +15,7 @@ def main():
     if env != "production":
         print(f"Running in {env.upper()} mode (debug={debug})")
     
-    app.run(host="0.0.0.0", port=5001, debug=debug)
+    app.run(host="0.0.0.0", port=5000, debug=debug)
 
 if __name__ == "__main__":
     main()
