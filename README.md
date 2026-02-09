@@ -69,3 +69,32 @@ npm run e2e
 ### Köra alla tester:
 npm run test:all
 
+```
+
+## 🐳 Docker
+
+**Docker-compose**
+```bash
+# Starta med Docker Compose (rekommenderat)
+docker-compose up -d
+
+# Stoppa
+docker-compose down
+
+# Stoppa och rensa data
+docker-compose down -v
+```
+
+**Alternativ: Docker Run**
+```bash
+chmod +x start.sh stop.sh
+./start.sh  # Starta
+./stop.sh   # Stoppa
+```
+
+**Loggar och debugging**
+```bash
+docker-compose logs -f        # Alla loggar
+docker logs -f echo_web       # Endast web
+docker exec -it echo_db mysql -u root -pchangemeCHANGEME123
+```
