@@ -1,0 +1,15 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="modernGrad5" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect x="30" y="30" width="140" height="140" rx="35" fill="url(#modernGrad5)"/>
+  
+  <!-- Bold 'E' using negative space -->
+  <path d="M 65 65 L 65 135 L 135 135 L 135 115 L 90 115 L 90 105 L 125 105 L 125 85 L 90 85 L 90 65 Z" 
+        fill="white"/>
+</svg>

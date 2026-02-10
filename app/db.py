@@ -22,9 +22,8 @@ def init_connection_pool(app: Flask) -> None:
     global _connection_pool
     
     try:
-        # Import DBUtils for connection pooling
-        from DBUtils.PooledDB import PooledDB
-        
+        from dbutils.pooled_db import PooledDB
+
         _connection_pool = PooledDB(
             creator=pymysql,
             maxconnections=app.config.get("MYSQL_POOL_SIZE", 10),
