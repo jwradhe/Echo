@@ -1,17 +1,19 @@
 {
   "info": {
-    "name": "Echo (Newman) - Form flow",
+    "name": "Echo (Newman) - Auth flow",
     "_postman_id": "11111111-1111-1111-1111-111111111111",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://127.0.0.1:5001" },
+    { "key": "username", "value": "" },
+    { "key": "email", "value": "" },
+    { "key": "password", "value": "" },
     { "key": "echoText", "value": "" }
   ],
   "item": [
-
     {
-      "name": "1) POST /create_echo (expect 302 redirect)",
+      "name": "1) POST /register (expect 302 redirect)",
       "protocolProfileBehavior": {
         "followRedirects": false
       },
@@ -23,14 +25,16 @@
         "body": {
           "mode": "urlencoded",
           "urlencoded": [
-            { "key": "echo", "value": "Newman Echo {{$timestamp}}", "type": "text" },
-            { "key": "status", "value": "published", "type": "text" }
+            { "key": "display_name", "value": "Newman User", "type": "text" },
+            { "key": "username", "value": "", "type": "text" },
+            { "key": "email", "value": "", "type": "text" },
+            { "key": "password", "value": "", "type": "text" }
           ]
         },
         "url": {
-          "raw": "{{baseUrl}}/create_echo",
+          "raw": "{{baseUrl}}/register",
           "host": ["{{baseUrl}}"],
-          "path": ["create_echo"]
+          "path": ["register"]
         }
       },
       "event": [
@@ -38,12 +42,20 @@
           "listen": "prerequest",
           "script": {
             "exec": [
-              "// Save echo text to use in later assertions",
-              "const txt = `Newman Echo ${Date.now()}`;",
-              "pm.collectionVariables.set('echo', txt);",
+              "const stamp = Date.now();",
+              "const username = `newman_user_${stamp}`;",
+              "const email = `newman_user_${stamp}@example.com`;",
+              "const password = 'TestPassword123';",
+              "const echoText = `Newman Echo ${stamp}`;",
               "",
-              "// Overwrite request body value (so it's unique per run)",
-              "pm.request.body.urlencoded.find(x => x.key === 'echo').value = txt;"
+              "pm.collectionVariables.set('username', username);",
+              "pm.collectionVariables.set('email', email);",
+              "pm.collectionVariables.set('password', password);",
+              "pm.collectionVariables.set('echoText', echoText);",
+              "",
+              "pm.request.body.urlencoded.find(x => x.key === 'username').value = username;",
+              "pm.request.body.urlencoded.find(x => x.key === 'email').value = email;",
+              "pm.request.body.urlencoded.find(x => x.key === 'password').value = password;"
             ]
           }
         },
@@ -68,9 +80,52 @@
         }
       ]
     },
-
     {
-      "name": "2) GET /dashboard (verify echo exists in HTML)",
+      "name": "2) POST /create_echo (expect 302 redirect)",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "echo", "value": "{{echoText}}", "type": "text" }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/create_echo",
+          "host": ["{{baseUrl}}"],
+          "path": ["create_echo"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 302 (redirect)', function () {",
+              "  pm.expect(pm.response.code).to.eql(302);",
+              "});",
+              "",
+              "pm.test('Has Location header', function () {",
+              "  pm.expect(pm.response.headers.has('Location')).to.be.true;",
+              "});",
+              "",
+              "pm.test('Redirects to /dashboard (or includes it)', function () {",
+              "  const loc = pm.response.headers.get('Location') || '';",
+              "  pm.expect(loc).to.include('/dashboard');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3) GET /dashboard (verify echo exists in HTML)",
       "request": {
         "method": "GET",
         "header": [],

@@ -2,12 +2,11 @@ import os
 import logging
 from datetime import datetime
 from pathlib import Path
-
 from dotenv import load_dotenv
-
-from flask import Flask, render_template, redirect, session, url_for, request, flash
+from flask import Flask, render_template, redirect, url_for, request, flash
+from flask_login import LoginManager, current_user, login_required
 from pymysql import cursors
-from .db import get_db, init_connection_pool, ensure_default_user
+from .db import get_db, init_connection_pool, ensure_default_user, ensure_default_admin
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +16,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     
     project_root = Path(__file__).resolve().parents[1]
     base_env_file = project_root / ".env"
-    if base_env_file.exists():
+    env_hint = os.environ.get("FLASK_ENV", "development")
+    if env_hint != "testing" and base_env_file.exists():
         load_dotenv(base_env_file, override=True)
 
     env = os.environ.get("FLASK_ENV", "development")
@@ -45,6 +45,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         init_connection_pool(app)
         logger.info(f"Connected to MySQL database: {app.config['MYSQL_DATABASE']}")
         ensure_default_user(app)
+        if env == "development":
+            ensure_default_admin(app)
     except Exception as e:
         logger.error(f"Failed to initialize database connection: {e}")
         if app.config.get("ENV") == "production":
@@ -67,14 +69,26 @@ def create_app(test_config: dict | None = None) -> Flask:
         dt = datetime.fromisoformat(value)
         return dt.strftime("%Y-%m-%d %H:%M")
 
-    # -------------------------------------------------
-    #
-    # -------------------------------------------------
-    current_user = {
-        "name": "John Doe",
-        "username": "johndoe",
-        "avatar": "https://images.unsplash.com/photo-1701463387028-3947648f1337?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=100"
-    }
+    login_manager = LoginManager()
+    login_manager.login_view = "auth.login"
+    login_manager.login_message_category = "warning"
+    login_manager.session_protection = "strong"
+    login_manager.init_app(app)
+
+    from .auth import load_user_by_id
+    from .auth_routes import auth_bp
+
+    @login_manager.user_loader
+    def load_user(user_id: str):
+        return load_user_by_id(user_id)
+
+    @login_manager.unauthorized_handler
+    def handle_unauthorized():
+        if request.path.startswith("/api/"):
+            return {"error": "Authentication required"}, 401
+        return redirect(url_for("auth.login", next=request.full_path))
+
+    app.register_blueprint(auth_bp)
 
     # =================================================
     # Routes
@@ -135,11 +149,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         return index()
     
     @app.route("/create_echo", methods=["POST"])
+    @login_required
     def create_echo():
         from uuid import uuid4
         
         content = (request.form.get("echo") or "").strip()
-        user_id = request.form.get("user_id") or "00000000-0000-0000-0000-000000000000"
+        user_id = current_user.get_id()
 
         if not content:
             flash("Echo krävs.", "danger")
@@ -168,12 +183,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         return redirect(url_for("dashboard"))
 
     @app.route("/api/posts", methods=["POST"])
+    @login_required
     def create_post_api():
         from uuid import uuid4
 
         payload = request.get_json(silent=True) or {}
         content = (payload.get("content") or "").strip()
-        user_id = payload.get("user_id") or "00000000-0000-0000-0000-000000000000"
+        user_id = current_user.get_id()
 
         if not content:
             return {"error": "Content is required"}, 400
@@ -203,10 +219,4 @@ def create_app(test_config: dict | None = None) -> Flask:
             logger.error(f"Error creating post (api): {e}")
             return {"error": "Failed to create post"}, 500
     
-    @app.route("/logout", methods=["POST"])
-    def logout():
-        session.clear()
-        flash("Du har loggats ut.", "info")
-        return redirect(url_for("dashboard"))
-
     return app
