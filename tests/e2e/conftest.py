@@ -31,6 +31,11 @@ def e2e_server():
 
     env = os.environ.copy()
     env.setdefault("FLASK_ENV", "testing")
+    env.setdefault("MYSQL_HOST", "localhost")
+    env.setdefault("MYSQL_PORT", "3306")
+    env.setdefault("MYSQL_USER", "root")
+    env.setdefault("MYSQL_PASSWORD", "changemeCHANGEME123")
+    env.setdefault("MYSQL_DATABASE", "EchoDB")
 
     process = subprocess.Popen(
         [sys.executable, "-m", "app"],

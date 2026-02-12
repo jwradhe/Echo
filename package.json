@@ -10,7 +10,7 @@
     "start": "flask --app app:create_app run --port 5001",
     "api-test": "newman run tests/postman/app.collection.json",
     "e2e": "python -m pytest tests/e2e",
-    "test:all": "start-server-and-test start http://127.0.0.1:5001/ \"npm run api-test && npm run e2e\"",
+    "test:all": "node scripts/run_test_all.mjs",
     "lint:py": "ruff check .",
     "lint:js": "eslint .",
     "lint": "npm run lint:js && npm run lint:py"

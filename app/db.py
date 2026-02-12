@@ -221,3 +221,81 @@ def ensure_default_user(app: Flask) -> str:
     except pymysql.Error as e:
         logger.error(f"Failed to ensure default user: {e}")
         return default_user_id  # Still return the ID so posts can use it
+
+
+def ensure_default_admin(app: Flask) -> Optional[str]:
+    """Ensure a development admin user exists."""
+    import os
+    from uuid import uuid4
+    from .auth import hash_password
+
+    username = os.environ.get("DEV_ADMIN_USERNAME", "admin")
+    email = os.environ.get("DEV_ADMIN_EMAIL", "admin@example.com")
+    password = os.environ.get("DEV_ADMIN_PASSWORD", "ChangeMeNow123")
+    display_name = os.environ.get("DEV_ADMIN_DISPLAY_NAME", "Admin")
+
+    if not username or not email or not password:
+        logger.warning("DEV_ADMIN_* credentials are not fully set; skipping admin seed")
+        return None
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    try:
+        with get_db(app) as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT user_id FROM Users WHERE username = %s OR email = %s LIMIT 1",
+                (username, email),
+            )
+            row = cursor.fetchone()
+            if row:
+                admin_user_id = row[0]
+            else:
+                admin_user_id = str(uuid4())
+                cursor.execute(
+                    """
+                    INSERT INTO Users (user_id, username, email, password_hash, display_name, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        admin_user_id,
+                        username,
+                        email,
+                        hash_password(password),
+                        display_name,
+                        now,
+                        now,
+                    ),
+                )
+
+            cursor.execute("SELECT role_id FROM Roles WHERE name = %s LIMIT 1", ("admin",))
+            role_row = cursor.fetchone()
+            if role_row:
+                admin_role_id = role_row[0]
+            else:
+                admin_role_id = str(uuid4())
+                cursor.execute(
+                    """
+                    INSERT INTO Roles (role_id, name, description, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (admin_role_id, "admin", "Development admin role", now, now),
+                )
+
+            cursor.execute(
+                """
+                INSERT IGNORE INTO UserRoles (user_id, role_id, assigned_at, updated_at)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (admin_user_id, admin_role_id, now, now),
+            )
+
+            cursor.close()
+            conn.commit()
+
+        logger.info("Ensured development admin user exists")
+        return admin_user_id
+    except pymysql.Error as e:
+        logger.error(f"Failed to ensure default admin: {e}")
+        return None
