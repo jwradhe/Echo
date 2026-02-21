@@ -10,6 +10,10 @@
 </head>
 <body>
     <div class="container-fluid">
+
+        <!-- Toast Container -->
+        <div id="toast-container"></div>
+        
         <div class="row">
             <!-- Left Sidebar -->
             <div class="col-md-3 col-lg-2 sidebar-left">
@@ -32,17 +36,17 @@
                         <a class="nav-link" href="#"><i class="bi bi-people"></i> Communities</a> -->
                         <a class="nav-link" href="#"><i class="bi bi-person"></i> Profile</a>
                         <a class="nav-link" href="#"><i class="bi bi-gear"></i> Settings</a>
+                        <hr>
                         {% if current_user.is_authenticated %}
                         <form method="post" action="{{ url_for('auth.logout') }}" class="mt-3">
                             <button type="submit" class="btn btn-outline-secondary w-100">Log out</button>
                         </form>
                         {% else %}
-                        <a class="nav-link" href="{{ url_for('auth.login') }}"><i class="bi bi-box-arrow-in-right"></i> Login</a>
-                        <a class="nav-link" href="{{ url_for('auth.register') }}"><i class="bi bi-person-plus"></i> Register</a>
+                        <button class="btn btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#loginModal">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </button>
                         {% endif %}
                     </nav>
-
-
                 </div>
             </div>
 
@@ -52,54 +56,26 @@
                 <div class="feed-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <h1 class="feed-title mb-0">Echoes</h1>
-                        <!-- <button class="btn btn-primary rounded-pill">
-                            <i class="bi bi-person"></i> Profile
-                        </button> -->
+                        {% if current_user.is_authenticated %}
+                        <button class="btn btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#composerModal">
+                            <i class="bi bi-plus"></i> Let's Echo
+                        </button>
+                        {% endif %}
                     </div>
                 </div>
 
-                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% with messages = get_flashed_messages(with_categories=True) %}
                 {% if messages %}
-                <div class="mt-3">
-                    {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
-                    {% endfor %}
-                </div>
+                <script>
+                    // @ts-nocheck
+                    document.addEventListener('DOMContentLoaded', function() {
+                        {% for category, message in messages %}
+                        showAlert({{ message | tojson }}, "alert-{{ category }}");
+                        {% endfor %}
+                    });
+                </script>
                 {% endif %}
                 {% endwith %}
-
-                <!-- Post Composer -->
-                <div class="post-composer">
-                    {% if current_user.is_authenticated %}
-                    <button class="btn btn-primary w-100 rounded-pill composer-trigger" id="composerBtn">
-                        <i class="bi bi-plus-lg"></i> Let's Echo
-                    </button>
-                    
-                    <div class="composer-form d-none" id="composerForm">
-                        <div class="d-flex gap-3">
-                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" alt="User avatar" class="post-avatar">
-                            <div class="flex-grow-1">
-                                <textarea class="form-control composer-textarea" id="postContent" placeholder="What do you want to echo?" maxlength="500"></textarea>
-                                <div class="composer-actions">
-                                    <div class="d-flex gap-2">
-                                        <button class="btn btn-link text-secondary"><i class="bi bi-image"></i></button>
-                                        <button class="btn btn-link text-secondary"><i class="bi bi-emoji-smile"></i></button>
-                                    </div>
-                                    <div class="d-flex gap-2 align-items-center">
-                                        <span class="text-secondary small" id="charCount">0/500</span>
-                                        <button class="btn btn-outline-secondary rounded-pill" id="cancelBtn">Cancel</button>
-                                        <button class="btn btn-primary rounded-pill" id="postBtn">Post Echo</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="alert alert-info mb-0">
-                        Log in to post new echoes.
-                    </div>
-                    {% endif %}
-                </div>
 
                 <!-- Posts Feed -->
                 <div id="postsFeed">
@@ -112,9 +88,31 @@
                                     <span class="post-author">{{ post.author.name }}</span>
                                     <span class="text-secondary">·</span>
                                     <span class="post-time">{{ post.timestamp }}</span>
-                                    <button class="btn btn-link text-secondary ms-auto p-0">
-                                        <i class="bi bi-three-dots"></i>
-                                    </button>
+                                    <div class="dropdown ms-auto">
+                                    {% if current_user.is_authenticated %}
+                                        <button class="btn btn-link text-secondary py-0" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="bi bi-three-dots"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            {% if post.author.id == current_user.id %}
+                                            <li>
+                                                <button class="dropdown-item" 
+                                                        data-post-id="{{ post.id }}" 
+                                                        data-content="{{ post.content | e }}"
+                                                        onclick="startInlineEdit(this)">
+                                                    <i class="bi bi-pencil me-2"></i>Edit
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item text-danger" 
+                                                        onclick="confirmDelete('{{ post.id }}')">
+                                                    <i class="bi bi-trash me-2"></i>Delete
+                                                </button>
+                                            </li>
+                                            {% endif %}
+                                        </ul>
+                                    {% endif %}
+                                    </div>
                                 </div>
                                 <p class="post-content">{{ post.content }}</p>
                                 <div class="post-actions">
@@ -154,10 +152,10 @@
                     <p class="text-secondary small mb-0">Echo is a microblogging platform where users can share short posts called "echoes".</p>
                 </div>
 
-                <!-- Trending Topics -->
+                {% if current_user.is_authenticated %}
                 <div class="info-card">
                     <h5 class="mb-2">Profile</h5>
-                    {% if current_user.is_authenticated %}
+                    
                     <div class="user-profile">
                         <div class="d-flex align-items-center gap-3">
                             <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" alt="User avatar" class="user-avatar">
@@ -166,18 +164,147 @@
                                 <div class="user-handle">@{{ current_user.username }}</div>
                             </div>
                         </div>
-                    </div>
-                    {% else %}
-                    <p class="text-secondary small">Sign in to personalize your profile.</p>
-                    <div class="d-grid gap-2">
-                        <a class="btn btn-primary" href="{{ url_for('auth.login') }}">Login</a>
-                        <a class="btn btn-outline-secondary" href="{{ url_for('auth.register') }}">Register</a>
-                    </div>
-                    {% endif %}
+                    </div>  
                 </div>
+                {% endif %}
 
 
+            </div>
+        </div>
+    </div>
 
+    <!-- Post Composer Modal -->
+    {% if current_user.is_authenticated %}
+    <div class="modal fade" id="composerModal" tabindex="-1" aria-labelledby="composerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title" id="composerModalLabel">New Echo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex gap-3">
+                        <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" alt="User avatar" class="post-avatar">
+                        <div class="flex-grow-1">
+                            <textarea class="form-control composer-textarea" id="postContent" placeholder="What do you want to echo?" maxlength="500"></textarea>
+                            <div class="composer-actions mt-2">
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-link text-secondary"><i class="bi bi-image"></i></button>
+                                    <button class="btn btn-link text-secondary"><i class="bi bi-emoji-smile"></i></button>
+                                </div>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <span class="text-secondary small" id="charCount">0/500</span>
+                                    <button class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                    <button class="btn btn-primary rounded-pill" id="postBtn">Post Echo</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Delete Confirmation Modal -->
+    {% if current_user.is_authenticated %}
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title">Delete Echo?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-secondary">
+                    Detta kan inte ångras.
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Avbryt</button>
+                    <form id="deleteForm" method="POST">
+                        <button type="submit" class="btn btn-danger rounded-pill">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Login Modal -->
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title">Log in to Echo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="post" action="{{ url_for('auth.login', next=request.args.get('next')) }}">
+                        <div class="mb-3">
+                            <label class="form-label text-light" for="username">Username</label>
+                            <input class="form-control" type="text" id="username" name="username" autocomplete="username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light" for="password">Password</label>
+                            <input class="form-control" type="password" id="password" name="password" autocomplete="current-password" required>
+                        </div>
+                        <button class="btn btn-primary w-100 rounded-pill" type="submit">Log in</button>
+                    </form>
+                    <p class="text-secondary small mt-3 mb-0">
+                        Need an account? 
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#registerModal"
+                        onclick="bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide()">
+                            Register
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div class="modal fade" id="registerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title">Create an account</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} py-2 small" role="alert">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                    {% endwith %}
+                    <form method="post" action="{{ url_for('auth.register') }}">
+                        <div class="mb-3">
+                            <label class="form-label text-light" for="display_name">Display name</label>
+                            <input class="form-control" type="text" id="display_name" name="display_name" autocomplete="nickname">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light" for="reg_username">Username</label>
+                            <input class="form-control" type="text" id="reg_username" name="username" autocomplete="username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light" for="reg_email">Email</label>
+                            <input class="form-control" type="email" id="reg_email" name="email" autocomplete="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light" for="reg_password">Password</label>
+                            <input class="form-control" type="password" id="reg_password" name="password" autocomplete="new-password" required>
+                            <div class="form-text text-secondary">Minimum 10 characters.</div>
+                        </div>
+                        <button class="btn btn-primary w-100 rounded-pill" type="submit">Register</button>
+                    </form>
+                    <p class="text-secondary small mt-3 mb-0">
+                        Already have an account? 
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#loginModal" 
+                        onclick="bootstrap.Modal.getInstance(document.getElementById('registerModal')).hide()">
+                            Log in
+                        </a>
+                    </p>
+                </div>
             </div>
         </div>
     </div>
