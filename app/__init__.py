@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
-from flask import Flask, render_template, redirect, url_for, request, flash
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import LoginManager, current_user, login_required
 from pymysql import cursors
 from .db import get_db, init_connection_pool, ensure_default_user, ensure_default_admin
@@ -180,6 +180,87 @@ def create_app(test_config: dict | None = None) -> Flask:
             logger.error(f"Error creating post: {e}")
             flash(f"Fel vid skapande av echo: {str(e)}", "danger")
         
+        return redirect(url_for("dashboard"))
+
+    @app.route("/edit_echo/<post_id>", methods=["POST"])
+    @login_required
+    def edit_echo(post_id):
+        user_id = current_user.get_id()
+
+        if not post_id:
+            flash("Ogiltigt echo ID.", "danger")
+            return redirect(url_for("dashboard"))
+
+        if request.is_json:
+            data = request.get_json()
+            new_content = data.get("content", "").strip()
+        else:
+            new_content = request.form.get("content", "").strip()
+
+        if not new_content:
+            if request.is_json:
+                return jsonify({"success": False, "error": "Innehållet får inte vara tomt."}), 400
+            flash("Innehållet får inte vara tomt.", "danger")
+            return redirect(url_for("dashboard"))
+
+        if len(new_content) > 500:
+            if request.is_json:
+                return jsonify({"success": False, "error": "Max 500 tecken."}), 400
+            flash("Max 500 tecken.", "danger")
+            return redirect(url_for("dashboard"))
+
+        try:
+            with get_db(app) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE Posts
+                    SET content = %s
+                    WHERE post_id = %s AND user_id = %s AND is_deleted = FALSE;
+                    """,
+                    (new_content, post_id, user_id),
+                )
+                cursor.close()
+
+            if request.is_json:
+                return jsonify({"success": True})
+
+            flash("Echo uppdaterad!", "success")
+        except Exception as e:
+            logger.error(f"Error updating post: {e}")
+            if request.is_json:
+                return jsonify({"success": False, "error": str(e)}), 500
+            flash(f"Fel vid uppdatering av echo: {str(e)}", "danger")
+
+        return redirect(url_for("dashboard"))
+
+    @app.route("/delete_echo/<post_id>", methods=["POST"])
+    @login_required
+    def delete_echo(post_id):
+        user_id = current_user.get_id()
+
+        if not post_id:
+            flash("Ogiltigt echo ID.", "danger")
+            return redirect(url_for("dashboard"))
+
+        try:
+            with get_db(app) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE Posts
+                    SET is_deleted = TRUE
+                    WHERE post_id = %s AND user_id = %s;
+                    """,
+                    (post_id, user_id),
+                )
+                cursor.close()
+
+            flash("Echo borttagen!", "success")
+        except Exception as e:
+            logger.error(f"Error deleting post: {e}")
+            flash(f"Fel vid borttagning av echo: {str(e)}", "danger")
+
         return redirect(url_for("dashboard"))
 
     @app.route("/api/posts", methods=["POST"])
