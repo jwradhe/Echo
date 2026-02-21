@@ -26,7 +26,11 @@ export default defineConfig([
     files: ["**/*.{js,mjs,cjs,ts,mts,cts}"],
     plugins: { js },
     extends: ["js/recommended"],
-    languageOptions: { globals: globals.browser }
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        bootstrap: "readonly" }
+      },
   },
 
   // CommonJS
@@ -37,6 +41,13 @@ export default defineConfig([
 
   // TypeScript
   tseslint.configs.recommended,
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", { 
+        "caughtErrorsIgnorePattern": "^_" 
+      }]
+    }
+  },
 
   // Markdown (README etc.)
   {
