@@ -5,11 +5,26 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://127.0.0.1:5001" },
-    { "key": "username", "value": "" },
-    { "key": "email", "value": "" },
-    { "key": "password", "value": "" },
-    { "key": "echoText", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5001"
+    },
+    {
+      "key": "username",
+      "value": ""
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "echoText",
+      "value": ""
+    }
   ],
   "item": [
     {
@@ -20,21 +35,44 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
         ],
         "body": {
           "mode": "urlencoded",
           "urlencoded": [
-            { "key": "display_name", "value": "Newman User", "type": "text" },
-            { "key": "username", "value": "", "type": "text" },
-            { "key": "email", "value": "", "type": "text" },
-            { "key": "password", "value": "", "type": "text" }
+            {
+              "key": "display_name",
+              "value": "Newman User",
+              "type": "text"
+            },
+            {
+              "key": "username",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "email",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "",
+              "type": "text"
+            }
           ]
         },
         "url": {
           "raw": "{{baseUrl}}/register",
-          "host": ["{{baseUrl}}"],
-          "path": ["register"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "register"
+          ]
         }
       },
       "event": [
@@ -88,18 +126,29 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
         ],
         "body": {
           "mode": "urlencoded",
           "urlencoded": [
-            { "key": "echo", "value": "{{echoText}}", "type": "text" }
+            {
+              "key": "echo",
+              "value": "{{echoText}}",
+              "type": "text"
+            }
           ]
         },
         "url": {
           "raw": "{{baseUrl}}/create_echo",
-          "host": ["{{baseUrl}}"],
-          "path": ["create_echo"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "create_echo"
+          ]
         }
       },
       "event": [
@@ -118,7 +167,14 @@
               "pm.test('Redirects to /dashboard (or includes it)', function () {",
               "  const loc = pm.response.headers.get('Location') || '';",
               "  pm.expect(loc).to.include('/dashboard');",
-              "});"
+              "});",
+              "",
+              "// Spara postId för edit/delete-stegen",
+              "const loc = pm.response.headers.get('Location') || '';",
+              "const match = loc.match(/\\/echo\\/(\\d+)/);",
+              "if (match) {",
+              "  pm.collectionVariables.set('postId', match[1]);",
+              "}"
             ]
           }
         }
@@ -131,8 +187,12 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/dashboard",
-          "host": ["{{baseUrl}}"],
-          "path": ["dashboard"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "dashboard"
+          ]
         }
       },
       "event": [
@@ -152,6 +212,95 @@
               "pm.test('Dashboard contains the created echo text', function () {",
               "  const echoText = pm.collectionVariables.get('echoText');",
               "  pm.expect(pm.response.text()).to.include(echoText);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4) POST /edit_echo/:id (expect 302 redirect)",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "echo",
+              "value": "Updated {{echoText}}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/edit_echo/{{postId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "edit_echo",
+            "{{postId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 302 (redirect)', function () {",
+              "  pm.expect(pm.response.code).to.eql(302);",
+              "});",
+              "",
+              "pm.test('Redirects to /dashboard', function () {",
+              "  const loc = pm.response.headers.get('Location') || '';",
+              "  pm.expect(loc).to.include('/dashboard');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5) POST /delete_echo/:id (expect 302 redirect)",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/delete_echo/{{postId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "delete_echo",
+            "{{postId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 302 (redirect)', function () {",
+              "  pm.expect(pm.response.code).to.eql(302);",
+              "});",
+              "",
+              "pm.test('Redirects to /dashboard', function () {",
+              "  const loc = pm.response.headers.get('Location') || '';",
+              "  pm.expect(loc).to.include('/dashboard');",
               "});"
             ]
           }
