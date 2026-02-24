@@ -24,33 +24,32 @@ if (composerModal) {
 }
 
 // Character counter
-postContent.addEventListener('input', () => {
-    const length = postContent.value.length;
-    charCount.textContent = `${length}/500`;
-    postBtn.disabled = length === 0 || length > 500;
-});
+if (postBtn && postContent && charCount) {
+    postContent.addEventListener('input', () => {
+        const length = postContent.value.length;
+        charCount.textContent = `${length}/500`;
+        postBtn.disabled = length === 0 || length > 500;
+    });
 
-// Post submission
-postBtn.addEventListener('click', async () => {
-    const content = postContent.value.trim();
-    if (!content) return;
+    postBtn.addEventListener('click', async () => {
+        const content = postContent.value.trim();
+        if (!content) return;
 
-    try {
-        const response = await fetch('/api/posts', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ content }),
-        });
+        try {
+            const response = await fetch('/api/posts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content }),
+            });
 
-        if (response.ok) {
-            location.reload();
+            if (response.ok) {
+                location.reload();
+            }
+        } catch (error) {
+            console.error('Error creating post:', error);
         }
-    } catch (error) {
-        console.error('Error creating post:', error);
-    }
-});
+    });
+}
 
 // Like/Bookmark actions
 document.addEventListener('click', async (e) => {
