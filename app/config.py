@@ -36,6 +36,11 @@ class Config:
     # Logging Configuration
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     LOG_FORMAT = os.environ.get("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+    # Profile image upload configuration
+    PROFILE_IMAGE_MAX_BYTES = int(os.environ.get("PROFILE_IMAGE_MAX_BYTES", str(5 * 1024 * 1024)))
+    PROFILE_IMAGE_MAX_DIMENSION = int(os.environ.get("PROFILE_IMAGE_MAX_DIMENSION", "512"))
+    PROFILE_IMAGE_UPLOAD_SUBDIR = os.environ.get("PROFILE_IMAGE_UPLOAD_SUBDIR", "uploads/profile")
     
     @staticmethod
     def get_database_url():

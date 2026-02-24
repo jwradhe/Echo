@@ -64,3 +64,8 @@ Thumbs.db
 *.log
 logs/
 
+# =========================
+# Generated uploads
+# =========================
+app/static/uploads/profile/
+

@@ -4,6 +4,7 @@ from flask import Blueprint, flash, redirect, request, url_for
 from flask_login import current_user, login_user, logout_user
 from pymysql import IntegrityError
 from .auth import assign_role, create_user, load_user_by_email, load_user_by_username, verify_password
+from .profile import create_profile
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -49,6 +50,7 @@ def login():
             username=user_row["username"],
             email=user_row["email"],
             display_name=user_row.get("display_name"),
+            profile_image_url=user_row.get("profile_image_url"),
             is_banned=bool(user_row.get("is_banned")),
             is_deleted=bool(user_row.get("is_deleted")),
         )
@@ -73,6 +75,7 @@ def register():
         email = (request.form.get("email") or "").strip()
         password = request.form.get("password") or ""
         display_name = (request.form.get("display_name") or "").strip() or None
+        bio = (request.form.get("bio") or "").strip() or None
 
         if not username or not email or not password:
             flash("Username, email, and password are required.", "danger")
@@ -92,6 +95,7 @@ def register():
 
         try:
             user = create_user(username=username, email=email, password=password, display_name=display_name)
+            create_profile(user.user_id, display_name=display_name, bio=bio)
             assign_role(user.user_id, "user")
         except IntegrityError:
             flash("Registration failed. Please try again.", "danger")

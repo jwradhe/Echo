@@ -34,7 +34,7 @@
                         <a class="nav-link" href="#"><i class="bi bi-envelope"></i> Messages</a>
                         <a class="nav-link" href="#"><i class="bi bi-bookmark"></i> Bookmarks</a>
                         <a class="nav-link" href="#"><i class="bi bi-people"></i> Communities</a> -->
-                        <a class="nav-link" href="#"><i class="bi bi-person"></i> Profile</a>
+                        <a class="nav-link" href="{{ url_for('profile.my_profile') }}"><i class="bi bi-person"></i> Profile</a>
                         <a class="nav-link" href="#"><i class="bi bi-gear"></i> Settings</a>
                         <hr>
                         {% if current_user.is_authenticated %}
@@ -81,7 +81,7 @@
                                             <i class="bi bi-three-dots"></i>
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
-                                            {% if post.author.id == current_user.id %}
+                                            {% if post.author.id == current_user.user_id %}
                                             <li>
                                                 <button class="dropdown-item" 
                                                         data-post-id="{{ post.id }}" 
@@ -145,7 +145,7 @@
                     
                     <div class="user-profile">
                         <div class="d-flex align-items-center gap-3">
-                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" alt="User avatar" class="user-avatar">
+                            <img src="{{ current_user.profile_image_url or default_avatar_url }}" alt="User avatar" class="user-avatar">
                             <div class="flex-grow-1">
                                 <div class="user-name">{{ current_user.display_name or current_user.username }}</div>
                                 <div class="user-handle">@{{ current_user.username }}</div>
@@ -171,7 +171,7 @@
                 </div>
                 <div class="modal-body">
                     <div class="d-flex gap-3">
-                        <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" alt="User avatar" class="post-avatar">
+                        <img src="{{ current_user.profile_image_url or default_avatar_url }}" alt="User avatar" class="post-avatar">
                         <div class="flex-grow-1">
                             <textarea class="form-control composer-textarea" id="postContent" placeholder="What do you want to echo?" maxlength="500"></textarea>
                             <div class="composer-actions mt-2">
@@ -268,6 +268,10 @@
                         <div class="mb-3">
                             <label class="form-label text-light" for="display_name">Display name</label>
                             <input class="form-control" type="text" id="display_name" name="display_name" autocomplete="nickname">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-light" for="reg_bio">Bio</label>
+                            <textarea class="form-control" id="reg_bio" name="bio" rows="3" maxlength="500" placeholder="Tell people about yourself"></textarea>
                         </div>
                         <div class="mb-3">
                             <label class="form-label text-light" for="reg_username">Username</label>

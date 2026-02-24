@@ -77,6 +77,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     from .auth import load_user_by_id
     from .auth_routes import auth_bp
+    from .profile_routes import profile_bp
 
     @login_manager.user_loader
     def load_user(user_id: str):
@@ -89,6 +90,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         return redirect(url_for("auth.login", next=request.full_path))
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(profile_bp)
 
     # =================================================
     # Routes
@@ -97,14 +99,18 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.route("/")
     def index():
         try:
+            default_avatar_url = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
+
             with get_db(app) as conn:
                 cursor = conn.cursor(cursors.DictCursor)
                 cursor.execute(
                     """
                     SELECT p.post_id, p.content, p.created_at, p.updated_at,
-                           u.username, u.display_name
+                           u.user_id, u.username, u.display_name,
+                           m.url AS profile_image_url
                     FROM Posts p
                     LEFT JOIN Users u ON p.user_id = u.user_id
+                    LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
                     WHERE p.is_deleted = FALSE
                     ORDER BY p.created_at DESC
                     LIMIT 50;
@@ -121,9 +127,10 @@ def create_app(test_config: dict | None = None) -> Flask:
                     {
                         "id": row.get("post_id"),
                         "author": {
+                            "id": row.get("user_id"),
                             "name": display_name,
                             "username": username,
-                            "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
+                            "avatar": row.get("profile_image_url") or default_avatar_url,
                         },
                         "content": row.get("content"),
                         "timestamp": row.get("created_at"),
@@ -138,6 +145,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return render_template(
                 "index.html",
                 posts=posts,  # Keep variable name for template compatibility
+                default_avatar_url=default_avatar_url,
                 current_user=current_user
             )
         except Exception as e:

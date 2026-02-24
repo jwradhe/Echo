@@ -254,3 +254,12 @@ window.showAlert = function(message, type, openModal) {
         modal.show();
     }
 }
+
+const profileBio = document.getElementById('profile_bio');
+const profileBioCount = document.getElementById('profileBioCount');
+
+if (profileBio && profileBioCount) {
+    profileBio.addEventListener('input', () => {
+        profileBioCount.textContent = `${profileBio.value.length}/500`;
+    });
+}
