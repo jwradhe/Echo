@@ -421,3 +421,28 @@ body {
   height: 5px;
   background-color: rgba(255, 255, 255, 0.6);
 }
+
+.profile-hero h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.profile-avatar-lg {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-form .form-control {
+  background-color: rgba(39, 39, 42, 0.5);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.profile-form .form-control:focus {
+  background-color: rgba(39, 39, 42, 0.8);
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+}
+

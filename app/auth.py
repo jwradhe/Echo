@@ -20,6 +20,7 @@ class User(UserMixin):
     username: str
     email: str
     display_name: Optional[str]
+    profile_image_url: Optional[str]
     is_banned: bool
     is_deleted: bool
 
@@ -37,6 +38,7 @@ def _row_to_user(row: dict) -> User:
         username=row["username"],
         email=row["email"],
         display_name=row.get("display_name"),
+        profile_image_url=row.get("profile_image_url"),
         is_banned=bool(row.get("is_banned")),
         is_deleted=bool(row.get("is_deleted")),
     )
@@ -50,8 +52,9 @@ def load_user_by_id(user_id: str) -> Optional[User]:
         cursor = conn.cursor(cursors.DictCursor)
         cursor.execute(
             """
-            SELECT user_id, username, email, display_name, is_banned, is_deleted
-            FROM Users
+            SELECT u.user_id, u.username, u.email, u.display_name, m.url AS profile_image_url, u.is_banned, u.is_deleted
+            FROM Users u
+            LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
             WHERE user_id = %s
             LIMIT 1;
             """,
@@ -71,9 +74,10 @@ def load_user_by_username(username: str) -> Optional[dict]:
         cursor = conn.cursor(cursors.DictCursor)
         cursor.execute(
             """
-            SELECT user_id, username, email, password_hash, display_name, is_banned, is_deleted
-            FROM Users
-            WHERE username = %s
+            SELECT u.user_id, u.username, u.email, u.password_hash, u.display_name, m.url AS profile_image_url, u.is_banned, u.is_deleted
+            FROM Users u
+            LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+            WHERE u.username = %s
             LIMIT 1;
             """,
             (username,),
@@ -92,9 +96,10 @@ def load_user_by_email(email: str) -> Optional[dict]:
         cursor = conn.cursor(cursors.DictCursor)
         cursor.execute(
             """
-            SELECT user_id, username, email, password_hash, display_name, is_banned, is_deleted
-            FROM Users
-            WHERE email = %s
+            SELECT u.user_id, u.username, u.email, u.password_hash, u.display_name, m.url AS profile_image_url, u.is_banned, u.is_deleted
+            FROM Users u
+            LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+            WHERE u.email = %s
             LIMIT 1;
             """,
             (email,),
@@ -142,6 +147,7 @@ def create_user(username: str, email: str, password: str, display_name: Optional
         username=username,
         email=email,
         display_name=display_name,
+        profile_image_url=None,
         is_banned=False,
         is_deleted=False,
     )

@@ -54,6 +54,7 @@ def clean_db(app):
         # Clean tables in reverse order of foreign key dependencies
         cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
         cursor.execute("DELETE FROM Posts WHERE 1=1")
+        cursor.execute("DELETE FROM Media WHERE 1=1")
         cursor.execute("DELETE FROM Users WHERE user_id != '00000000-0000-0000-0000-000000000000'")
         cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
         cursor.close()
