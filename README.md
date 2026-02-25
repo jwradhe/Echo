@@ -1,3 +1,6 @@
+## Demo
+Demo finns att testa på https://echo.wradhe.se/
+
 
 ## 🚀 Kom igång lokalt
 
