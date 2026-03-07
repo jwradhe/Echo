@@ -67,7 +67,12 @@
                 <!-- Posts Feed -->
                 <div id="postsFeed">
                     {% for post in posts %}
-                    <div class="post-card" data-post-id="{{ post.id }}">
+                    <div class="post-card"
+                         data-post-id="{{ post.id }}"
+                         data-thread-closed="{{ 'true' if post.threadClosed else 'false' }}"
+                         data-thread-restricted="{{ 'true' if post.threadRestricted else 'false' }}"
+                         data-can-comment="{{ 'true' if post.canComment else 'false' }}"
+                         data-comment-participants="{{ post.commentParticipants | tojson | forceescape }}">
                         <div class="d-flex gap-3">
                             <img src="{{ post.author.avatar }}" alt="{{ post.author.name }}" class="post-avatar">
                             <div class="flex-grow-1">
@@ -96,6 +101,28 @@
                                                     <i class="bi bi-trash me-2"></i>Delete
                                                 </button>
                                             </li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <button class="dropdown-item thread-lock-toggle-btn"
+                                                        type="button"
+                                                        data-is-closed="{{ 'true' if post.threadClosed else 'false' }}"
+                                                        {% if post.threadRestricted %}disabled{% endif %}>
+                                                    <i class="bi bi-chat-left-text me-2"></i>
+                                                    {% if post.threadRestricted %}
+                                                    Svarstråd privat efter utbrytning
+                                                    {% elif post.threadClosed %}
+                                                    Öppna svarstråd
+                                                    {% else %}
+                                                    Stäng svarstråd
+                                                    {% endif %}
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item discussion-split-open-btn"
+                                                        type="button">
+                                                    <i class="bi bi-diagram-3 me-2"></i>Bryt ut diskussion
+                                                </button>
+                                            </li>
                                             {% endif %}
                                         </ul>
                                     {% endif %}
@@ -106,6 +133,7 @@
                                     <button class="btn btn-link text-secondary action-btn comment-toggle-btn" type="button">
                                         <i class="bi bi-chat"></i>
                                         <span class="comment-count">{{ post.comments }}</span>
+                                        <i class="bi bi-lock-fill text-warning ms-1 thread-locked-indicator {% if not post.threadClosed %}d-none{% endif %}"></i>
                                     </button>
                                     <button class="btn btn-link action-btn like-btn {% if post.isLiked %}liked{% endif %}" data-action="like">
                                         <i class="bi {% if post.isLiked %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
@@ -116,31 +144,51 @@
                                     </button>
                                 </div>
                                 <div class="comments-section d-none">
-                                    <div class="comments-list">
-                                        {% for comment in post.commentsList %}
-                                        <div class="comment-item">
-                                            <img src="{{ comment.author.avatar }}" alt="{{ comment.author.name }}" class="comment-avatar">
-                                            <div class="comment-body">
-                                                <div class="comment-meta">
-                                                    <span class="comment-author">{{ comment.author.name }}</span>
-                                                    <span class="text-secondary">·</span>
-                                                    <span class="comment-time">{{ comment.timestamp }}</span>
+                                    {% if post.canViewComments %}
+                                        <div class="comments-list">
+                                            {% for comment in post.commentsList %}
+                                            {% if comment.isMarker %}
+                                            <div class="thread-marker">
+                                                <span class="thread-marker-label">{{ comment.label }}</span>
+                                                {% if comment.timestamp %}
+                                                <span class="thread-marker-time">{{ comment.timestamp }}</span>
+                                                {% endif %}
+                                            </div>
+                                            {% else %}
+                                            <div class="comment-item">
+                                                <img src="{{ comment.author.avatar }}" alt="{{ comment.author.name }}" class="comment-avatar">
+                                                <div class="comment-body">
+                                                    <div class="comment-meta">
+                                                        <span class="comment-author">{{ comment.author.name }}</span>
+                                                        <span class="text-secondary">·</span>
+                                                        <span class="comment-time">{{ comment.timestamp }}</span>
+                                                    </div>
+                                                    <p class="comment-content">{{ comment.content }}</p>
                                                 </div>
-                                                <p class="comment-content">{{ comment.content }}</p>
+                                            </div>
+                                            {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                        {% if current_user.is_authenticated %}
+                                        <p class="text-warning small mb-2 thread-closed-note {% if not post.threadClosed or post.threadRestricted %}d-none{% endif %}">
+                                            Svarstråden är stängd för nya kommentarer.
+                                        </p>
+                                        {% if post.threadRestricted %}
+                                        <hr class="my-2">
+                                        <p class="text-info small mb-2">Privat diskussion. Endast utvalda deltagare kan svara.</p>
+                                        {% endif %}
+                                        <div class="comment-form">
+                                            <textarea class="form-control comment-input" rows="2" maxlength="500" placeholder="{% if not post.canComment %}Svarstråden är stängd.{% else %}Skriv en kommentar...{% endif %}" {% if not post.canComment %}disabled{% endif %}></textarea>
+                                            <div class="comment-form-footer">
+                                                <small class="text-secondary comment-charcount">0/500</small>
+                                                <button class="btn btn-primary btn-sm rounded-pill comment-submit-btn" type="button" disabled {% if not post.canComment %}disabled{% endif %}>Kommentera</button>
                                             </div>
                                         </div>
-                                        {% endfor %}
-                                    </div>
-                                    {% if current_user.is_authenticated %}
-                                    <div class="comment-form">
-                                        <textarea class="form-control comment-input" rows="2" maxlength="500" placeholder="Skriv en kommentar..."></textarea>
-                                        <div class="comment-form-footer">
-                                            <small class="text-secondary comment-charcount">0/500</small>
-                                            <button class="btn btn-primary btn-sm rounded-pill comment-submit-btn" type="button" disabled>Kommentera</button>
-                                        </div>
-                                    </div>
-                                    {% else %}
-                                    <p class="text-secondary small mb-0">Logga in för att kommentera.</p>
+                                        {% else %}
+                                        <p class="text-secondary small mb-0">Logga in för att kommentera.</p>
+                                        {% endif %}
+                                    {% elif post.threadRestricted %}
+                                    <p class="text-secondary small mb-0">Den här tråden är utbruten till en privat diskussion.</p>
                                     {% endif %}
                                 </div>
                             </div>
@@ -215,6 +263,33 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if current_user.is_authenticated %}
+    <div class="modal fade" id="splitDiscussionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title">Bryt ut diskussion</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="splitDiscussionPostId">
+                    <div class="mb-3">
+                        <label for="splitDiscussionName" class="form-label">Namn på diskussion</label>
+                        <input type="text" id="splitDiscussionName" class="form-control" maxlength="255" placeholder="T.ex. Planering nästa steg">
+                    </div>
+                    <p class="small text-secondary mb-1">Välj vilka av kommentatorerna som ska följa med:</p>
+                    <p class="small text-secondary mb-2">Du läggs till automatiskt.</p>
+                    <div id="splitDiscussionParticipants" class="split-participants-list"></div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Avbryt</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="splitDiscussionSubmitBtn">Skapa grupp</button>
                 </div>
             </div>
         </div>

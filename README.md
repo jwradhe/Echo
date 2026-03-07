@@ -40,7 +40,24 @@ Projektet använder MySQL 8.0+ med raw SQL queries.
 - Development: `.env` (lokal MySQL)
 - Production: `.env.production` (managed database)
 
-**Schema:** 16 tabeller definierade i `schema.sql`
+**Schema:** tabeller definierade i `schema.sql`
+
+## 🧵 Trådar och kommentarer
+
+Nya funktioner i feeden:
+- Kommentera inlägg.
+- Stäng/öppna svarstråd (inläggsägare).
+- Bryt ut diskussion till privat tråd med valda deltagare.
+
+Regler vid utbrytning:
+- Inlägg/svar före utbrytning förblir synliga för alla.
+- Nya svar efter utbrytning syns endast för inläggsägare + valda deltagare.
+- Inläggsägaren läggs till automatiskt i utbruten tråd.
+
+Relevanta API-endpoints:
+- `POST /api/posts/<post_id>/comments`
+- `POST /api/posts/<post_id>/reply-lock`
+- `POST /api/posts/<post_id>/discussion-groups`
 
 ## 🔎 Kodkvalitet (Lint)
 

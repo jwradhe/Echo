@@ -25,6 +25,20 @@ def _register_user(client, suffix: str) -> dict:
     return {"response": resp, "username": username, "email": email, "password": password}
 
 
+def _login_user(client, username: str, password: str) -> None:
+    resp = client.post(
+        "/login",
+        data={"username": username, "password": password},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+
+
+def _logout_user(client) -> None:
+    resp = client.post("/logout", follow_redirects=False)
+    assert resp.status_code == 302
+
+
 def test_dashboard_loads(client):
     """Test dashboard page loads successfully."""
     resp = client.get("/dashboard")
@@ -134,6 +148,156 @@ def test_create_comment_authenticated(app, client):
     assert row is not None
     assert row["parent_post_id"] == post_id
     assert row["content"] == comment_content
+
+
+def test_closed_thread_blocks_new_comments(app, client):
+    """Post owner can close thread and new comments are blocked."""
+    owner_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_owner"
+    owner = _register_user(client, owner_suffix)
+    assert owner["response"].status_code == 302
+
+    create_resp = client.post("/api/posts", json={"content": "Thread lock post"})
+    assert create_resp.status_code == 201
+    post_id = create_resp.get_json()["post_id"]
+
+    _logout_user(client)
+    commenter_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_commenter"
+    commenter = _register_user(client, commenter_suffix)
+    assert commenter["response"].status_code == 302
+
+    first_comment = client.post(
+        f"/api/posts/{post_id}/comments",
+        json={"content": "First comment before lock"},
+    )
+    assert first_comment.status_code == 201
+
+    _logout_user(client)
+    _login_user(client, owner["username"], owner["password"])
+
+    lock_resp = client.post(
+        f"/api/posts/{post_id}/reply-lock",
+        json={"is_closed": True},
+    )
+    assert lock_resp.status_code == 200
+    assert lock_resp.get_json()["is_closed"] is True
+
+    _logout_user(client)
+    _login_user(client, commenter["username"], commenter["password"])
+
+    blocked_comment = client.post(
+        f"/api/posts/{post_id}/comments",
+        json={"content": "Should be blocked"},
+    )
+    assert blocked_comment.status_code == 403
+
+
+def test_split_discussion_selects_commenters(app, client):
+    """Owner can split discussion and select specific commenters."""
+    owner_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_split_owner"
+    owner = _register_user(client, owner_suffix)
+    assert owner["response"].status_code == 302
+
+    create_resp = client.post("/api/posts", json={"content": "Split this discussion"})
+    assert create_resp.status_code == 201
+    post_id = create_resp.get_json()["post_id"]
+
+    _logout_user(client)
+    commenter_a = _register_user(client, datetime.now().isoformat(timespec="seconds").replace(":", "") + "_a")
+    assert commenter_a["response"].status_code == 302
+    comment_a_content = "A comment before split from selected user"
+    comment_a_resp = client.post(f"/api/posts/{post_id}/comments", json={"content": comment_a_content})
+    assert comment_a_resp.status_code == 201
+
+    _logout_user(client)
+    commenter_b = _register_user(client, datetime.now().isoformat(timespec="seconds").replace(":", "") + "_b")
+    assert commenter_b["response"].status_code == 302
+    comment_b_content = "B comment before split from non-selected user"
+    comment_b_resp = client.post(f"/api/posts/{post_id}/comments", json={"content": comment_b_content})
+    assert comment_b_resp.status_code == 201
+
+    _logout_user(client)
+    _login_user(client, owner["username"], owner["password"])
+
+    # Resolve commenter_a user id and retry with valid payload
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute("SELECT user_id FROM Users WHERE username = %s", (commenter_a["username"],))
+        commenter_a_row = cursor.fetchone()
+        cursor.execute("SELECT user_id FROM Users WHERE username = %s", (owner["username"],))
+        owner_row = cursor.fetchone()
+        cursor.close()
+
+    assert commenter_a_row is not None
+    assert owner_row is not None
+
+    split_resp = client.post(
+        f"/api/posts/{post_id}/discussion-groups",
+        json={
+            "name": "Utbrytning test",
+            "participant_user_ids": [commenter_a_row["user_id"]],
+        },
+    )
+    assert split_resp.status_code == 201
+    payload = split_resp.get_json()
+    group_id = payload["group_id"]
+
+    reopen_resp = client.post(
+        f"/api/posts/{post_id}/reply-lock",
+        json={"is_closed": False},
+    )
+    assert reopen_resp.status_code == 400
+
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute(
+            "SELECT name, origin_post_id, created_by FROM UserGroups WHERE group_id = %s",
+            (group_id,),
+        )
+        group_row = cursor.fetchone()
+        cursor.execute(
+            "SELECT user_id FROM GroupMembers WHERE group_id = %s ORDER BY user_id",
+            (group_id,),
+        )
+        member_rows = cursor.fetchall()
+        cursor.execute("SELECT user_id FROM Users WHERE username = %s", (commenter_b["username"],))
+        commenter_b_row = cursor.fetchone()
+        cursor.close()
+
+    assert group_row is not None
+    assert group_row["name"] == "Utbrytning test"
+    assert group_row["origin_post_id"] == post_id
+    assert group_row["created_by"] == owner_row["user_id"]
+    assert commenter_b_row is not None
+
+    member_ids = {row["user_id"] for row in member_rows}
+    assert owner_row["user_id"] in member_ids
+    assert commenter_a_row["user_id"] in member_ids
+    assert commenter_b_row["user_id"] not in member_ids
+
+    _logout_user(client)
+    _login_user(client, commenter_a["username"], commenter_a["password"])
+    private_after_split_content = "Only selected users should see this after split"
+    allowed_reply_resp = client.post(
+        f"/api/posts/{post_id}/comments",
+        json={"content": private_after_split_content},
+    )
+    assert allowed_reply_resp.status_code == 201
+    selected_dashboard_resp = client.get("/dashboard")
+    assert selected_dashboard_resp.status_code == 200
+    assert private_after_split_content.encode("utf-8") in selected_dashboard_resp.data
+
+    _logout_user(client)
+    _login_user(client, commenter_b["username"], commenter_b["password"])
+    blocked_reply_resp = client.post(
+        f"/api/posts/{post_id}/comments",
+        json={"content": "Should not be allowed after split"},
+    )
+    assert blocked_reply_resp.status_code == 403
+    dashboard_resp = client.get("/dashboard")
+    assert dashboard_resp.status_code == 200
+    assert comment_a_content.encode("utf-8") in dashboard_resp.data
+    assert comment_b_content.encode("utf-8") in dashboard_resp.data
+    assert private_after_split_content.encode("utf-8") not in dashboard_resp.data
 
 
 def test_echo_visible_on_dashboard(client):

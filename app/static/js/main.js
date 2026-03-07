@@ -46,6 +46,75 @@ function createCommentElement(comment) {
     return item;
 }
 
+function parseCommentParticipants(postCard) {
+    const raw = postCard?.dataset.commentParticipants;
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_err) {
+        return [];
+    }
+}
+
+function setThreadClosedState(postCard, isClosed) {
+    postCard.dataset.threadClosed = isClosed ? 'true' : 'false';
+
+    const lockIndicator = postCard.querySelector('.thread-locked-indicator');
+    if (lockIndicator) {
+        lockIndicator.classList.toggle('d-none', !isClosed);
+    }
+
+    const note = postCard.querySelector('.thread-closed-note');
+    if (note) {
+        note.classList.toggle('d-none', !isClosed);
+    }
+
+    const lockBtn = postCard.querySelector('.thread-lock-toggle-btn');
+    if (lockBtn) {
+        lockBtn.dataset.isClosed = isClosed ? 'true' : 'false';
+        if (postCard.dataset.threadRestricted === 'true') {
+            lockBtn.textContent = 'Svarstråd privat efter utbrytning';
+            lockBtn.disabled = true;
+        } else {
+            lockBtn.textContent = isClosed ? 'Öppna svarstråd' : 'Stäng svarstråd';
+            lockBtn.disabled = false;
+        }
+    }
+
+    const input = postCard.querySelector('.comment-input');
+    const submitBtn = postCard.querySelector('.comment-submit-btn');
+    const canComment = postCard.dataset.canComment === 'true';
+    if (input) {
+        input.disabled = !canComment;
+        input.placeholder = canComment ? 'Skriv en kommentar...' : 'Svarstråden är stängd.';
+    }
+    if (submitBtn) {
+        submitBtn.disabled = !canComment || !input?.value.trim();
+    }
+}
+
+function renderSplitParticipants(container, participants) {
+    container.innerHTML = '';
+    if (!participants.length) {
+        const empty = document.createElement('p');
+        empty.className = 'split-participants-empty';
+        empty.textContent = 'Inga kommentatorer att välja ännu.';
+        container.append(empty);
+        return;
+    }
+
+    participants.forEach((participant) => {
+        const check = document.createElement('div');
+        check.className = 'form-check';
+        check.innerHTML = `
+            <input class="form-check-input split-participant-checkbox" type="checkbox" value="${participant.id}" id="split_${participant.id}">
+            <label class="form-check-label" for="split_${participant.id}">${participant.name}</label>
+        `;
+        container.append(check);
+    });
+}
+
 
 // Rensa composer när modalen öppnas
 const composerModal = document.getElementById('composerModal');
@@ -155,6 +224,10 @@ document.querySelectorAll('.comment-time').forEach(el => {
     el.textContent = formatTimestamp(el.textContent);
 });
 
+document.querySelectorAll('.thread-marker-time').forEach(el => {
+    el.textContent = formatTimestamp(el.textContent);
+});
+
 document.addEventListener('click', async (e) => {
     const toggleBtn = e.target.closest('.comment-toggle-btn');
     if (toggleBtn) {
@@ -163,6 +236,58 @@ document.addEventListener('click', async (e) => {
         if (section) {
             section.classList.toggle('d-none');
         }
+        return;
+    }
+
+    const lockToggleBtn = e.target.closest('.thread-lock-toggle-btn');
+    if (lockToggleBtn) {
+        const postCard = lockToggleBtn.closest('.post-card');
+        const postId = postCard?.dataset.postId;
+        if (!postCard || !postId) return;
+        if (postCard.dataset.threadRestricted === 'true') {
+            showAlert('Svarstråden är privat efter utbrytning.', 'alert-info');
+            return;
+        }
+
+        const currentState = lockToggleBtn.dataset.isClosed === 'true';
+        lockToggleBtn.disabled = true;
+        try {
+            const response = await fetch(`/api/posts/${postId}/reply-lock`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_closed: !currentState }),
+            });
+            if (!response.ok) throw new Error('failed');
+            const payload = await response.json();
+            setThreadClosedState(postCard, Boolean(payload.is_closed));
+            showAlert(payload.is_closed ? 'Svarstråden är nu stängd.' : 'Svarstråden är nu öppen.', 'alert-info');
+        } catch (_err) {
+            showAlert('Kunde inte uppdatera svarstråden.', 'alert-danger');
+        } finally {
+            lockToggleBtn.disabled = false;
+        }
+        return;
+    }
+
+    const splitBtn = e.target.closest('.discussion-split-open-btn');
+    if (splitBtn) {
+        const modalEl = document.getElementById('splitDiscussionModal');
+        const postCard = splitBtn.closest('.post-card');
+        if (!modalEl || !postCard) return;
+
+        const participants = parseCommentParticipants(postCard);
+        const modal = new bootstrap.Modal(modalEl);
+        const postIdInput = document.getElementById('splitDiscussionPostId');
+        const nameInput = document.getElementById('splitDiscussionName');
+        const participantsContainer = document.getElementById('splitDiscussionParticipants');
+        const submitBtn = document.getElementById('splitDiscussionSubmitBtn');
+        if (!postIdInput || !nameInput || !participantsContainer || !submitBtn) return;
+
+        postIdInput.value = postCard.dataset.postId || '';
+        nameInput.value = '';
+        renderSplitParticipants(participantsContainer, participants);
+        submitBtn.disabled = participants.length === 0;
+        modal.show();
         return;
     }
 
@@ -177,6 +302,11 @@ document.addEventListener('click', async (e) => {
 
     const content = input.value.trim();
     if (!content) return;
+    const canComment = postCard.dataset.canComment === 'true';
+    if (!canComment) {
+        showAlert('Svarstråden är stängd för nya kommentarer.', 'alert-warning');
+        return;
+    }
 
     submitBtn.disabled = true;
     const previousLabel = submitBtn.textContent;
@@ -222,8 +352,64 @@ document.addEventListener('input', (e) => {
     const submitBtn = postCard?.querySelector('.comment-submit-btn');
     const length = commentInput.value.length;
     if (countEl) countEl.textContent = `${length}/500`;
-    if (submitBtn) submitBtn.disabled = length === 0 || length > 500;
+    if (submitBtn) {
+        submitBtn.disabled =
+            length === 0 || length > 500 || postCard?.dataset.canComment !== 'true';
+    }
 });
+
+const splitDiscussionSubmitBtn = document.getElementById('splitDiscussionSubmitBtn');
+if (splitDiscussionSubmitBtn) {
+    splitDiscussionSubmitBtn.addEventListener('click', async () => {
+        const modalEl = document.getElementById('splitDiscussionModal');
+        const postIdInput = document.getElementById('splitDiscussionPostId');
+        const nameInput = document.getElementById('splitDiscussionName');
+        const participantsContainer = document.getElementById('splitDiscussionParticipants');
+        if (!modalEl || !postIdInput || !nameInput || !participantsContainer) return;
+
+        const selected = Array.from(
+            participantsContainer.querySelectorAll('.split-participant-checkbox:checked')
+        ).map((el) => el.value);
+
+        if (!selected.length) {
+            showAlert('Välj minst en annan deltagare.', 'alert-warning');
+            return;
+        }
+
+        splitDiscussionSubmitBtn.disabled = true;
+        const previousText = splitDiscussionSubmitBtn.textContent;
+        splitDiscussionSubmitBtn.textContent = 'Skapar...';
+
+        try {
+            const response = await fetch(`/api/posts/${postIdInput.value}/discussion-groups`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: nameInput.value.trim(),
+                    participant_user_ids: selected,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('failed');
+            }
+            const payload = await response.json();
+            bootstrap.Modal.getInstance(modalEl)?.hide();
+            const postCard = document.querySelector(`.post-card[data-post-id="${postIdInput.value}"]`);
+            if (postCard) {
+                postCard.dataset.threadRestricted = 'true';
+                postCard.dataset.canComment = 'true';
+                setThreadClosedState(postCard, true);
+            }
+            showAlert(`Diskussion "${payload.name}" skapad.`, 'alert-success');
+        } catch (_err) {
+            showAlert('Kunde inte bryta ut diskussionen.', 'alert-danger');
+        } finally {
+            splitDiscussionSubmitBtn.disabled = false;
+            splitDiscussionSubmitBtn.textContent = previousText;
+        }
+    });
+}
 
 window.startInlineEdit = function(btn) {
     const postId = btn.dataset.postId;
@@ -304,7 +490,7 @@ window.confirmDelete = function(postId) {
 }
 
 
-window.showAlert = function(message, type, openModal) {
+function showAlert(message, type, openModal) {
     const toastContainer = document.getElementById('toast-container');
     if (!toastContainer) {
         console.error('No element with id "toast-container" found');
@@ -369,6 +555,8 @@ window.showAlert = function(message, type, openModal) {
         modal.show();
     }
 }
+
+window.showAlert = showAlert;
 
 const profileBio = document.getElementById('profile_bio');
 const profileBioCount = document.getElementById('profileBioCount');
