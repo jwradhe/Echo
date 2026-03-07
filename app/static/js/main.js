@@ -40,8 +40,21 @@ function createCommentElement(comment) {
     content.className = 'comment-content';
     content.textContent = comment.content;
 
+    const replyActions = document.createElement('div');
+    replyActions.className = 'reply-actions';
+
+    const likeBtn = document.createElement('button');
+    likeBtn.type = 'button';
+    likeBtn.className = `btn btn-link reply-like-btn ${comment.isLiked ? 'liked' : ''}`.trim();
+    likeBtn.dataset.replyId = comment.reply_id || comment.id;
+    likeBtn.innerHTML = `
+        <i class="bi ${comment.isLiked ? 'bi-heart-fill' : 'bi-heart'}"></i>
+        <span class="reply-like-count">${comment.likes || 0}</span>
+    `;
+
+    replyActions.append(likeBtn);
     meta.append(author, separator, time);
-    body.append(meta, content);
+    body.append(meta, content, replyActions);
     item.append(avatar, body);
     return item;
 }
@@ -340,6 +353,37 @@ document.addEventListener('click', async (e) => {
     } finally {
         submitBtn.textContent = previousLabel;
         submitBtn.disabled = !input.value.trim();
+    }
+});
+
+document.addEventListener('click', async (e) => {
+    const likeBtn = e.target.closest('.reply-like-btn');
+    if (!likeBtn) return;
+
+    const replyId = likeBtn.dataset.replyId;
+    if (!replyId) return;
+
+    likeBtn.disabled = true;
+    try {
+        const response = await fetch(`/api/replies/${replyId}/like`, { method: 'POST' });
+        if (!response.ok) {
+            throw new Error('failed');
+        }
+        const payload = await response.json();
+        const icon = likeBtn.querySelector('i');
+        const count = likeBtn.querySelector('.reply-like-count');
+        likeBtn.classList.toggle('liked', Boolean(payload.isLiked));
+        if (icon) {
+            icon.classList.toggle('bi-heart-fill', Boolean(payload.isLiked));
+            icon.classList.toggle('bi-heart', !payload.isLiked);
+        }
+        if (count) {
+            count.textContent = `${payload.likes || 0}`;
+        }
+    } catch (_err) {
+        showAlert('Kunde inte gilla svaret.', 'alert-danger');
+    } finally {
+        likeBtn.disabled = false;
     }
 });
 

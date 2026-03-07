@@ -99,6 +99,30 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(profile_bp)
 
+    def _ensure_like_reaction_type(conn) -> str:
+        """Ensure a 'like' reaction type exists and return its ID."""
+        from uuid import uuid4
+
+        cursor = conn.cursor(cursors.DictCursor)
+        now = datetime.now().isoformat(timespec="seconds")
+        cursor.execute("SELECT reaction_type_id FROM ReactionTypes WHERE name = %s LIMIT 1", ("like",))
+        row = cursor.fetchone()
+        if row and row.get("reaction_type_id"):
+            reaction_type_id = row["reaction_type_id"]
+            cursor.close()
+            return reaction_type_id
+
+        reaction_type_id = str(uuid4())
+        cursor.execute(
+            """
+            INSERT INTO ReactionTypes (reaction_type_id, name, created_at, updated_at)
+            VALUES (%s, %s, %s, %s);
+            """,
+            (reaction_type_id, "like", now, now),
+        )
+        cursor.close()
+        return reaction_type_id
+
     # =================================================
     # Routes
     # =================================================
@@ -117,6 +141,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                            u.user_id, u.username, u.display_name,
                            m.url AS profile_image_url,
                            COALESCE(rc.reply_count, 0) AS reply_count,
+                           COALESCE(plc.like_count, 0) AS like_count,
                            COALESCE(p.replies_closed, FALSE) AS replies_closed,
                            p.replies_closed_at,
                            p.restricted_group_id,
@@ -147,7 +172,20 @@ def create_app(test_config: dict | None = None) -> Flask:
                                    END
                                WHEN p.restricted_group_id IS NULL AND COALESCE(p.replies_closed, FALSE) = FALSE THEN TRUE
                                ELSE FALSE
-                           END AS can_comment_replies
+                           END AS can_comment_replies,
+                           CASE
+                               WHEN %s IS NULL THEN FALSE
+                               WHEN EXISTS (
+                                   SELECT 1
+                                   FROM Reactions lr
+                                   JOIN ReactionTypes lrt ON lrt.reaction_type_id = lr.reaction_type_id
+                                   WHERE lr.post_id = p.post_id
+                                     AND lr.reply_id IS NULL
+                                     AND lr.user_id = %s
+                                     AND lrt.name = 'like'
+                               ) THEN TRUE
+                               ELSE FALSE
+                           END AS is_liked
                     FROM Posts p
                     LEFT JOIN Users u ON p.user_id = u.user_id
                     LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
@@ -157,11 +195,29 @@ def create_app(test_config: dict | None = None) -> Flask:
                         WHERE is_deleted = FALSE
                         GROUP BY parent_post_id
                     ) rc ON rc.parent_post_id = p.post_id
+                    LEFT JOIN (
+                        SELECT r.post_id, COUNT(DISTINCT r.user_id) AS like_count
+                        FROM Reactions r
+                        JOIN ReactionTypes rt ON rt.reaction_type_id = r.reaction_type_id
+                        WHERE r.post_id IS NOT NULL
+                          AND r.reply_id IS NULL
+                          AND rt.name = 'like'
+                        GROUP BY r.post_id
+                    ) plc ON plc.post_id = p.post_id
                     WHERE p.is_deleted = FALSE
                     ORDER BY p.created_at DESC
                     LIMIT 50;
                     """,
-                    (viewer_id, viewer_id, viewer_id, viewer_id, viewer_id, viewer_id),
+                    (
+                        viewer_id,
+                        viewer_id,
+                        viewer_id,
+                        viewer_id,
+                        viewer_id,
+                        viewer_id,
+                        viewer_id,
+                        viewer_id,
+                    ),
                 )
                 db_posts = cursor.fetchall()
                 post_ids = [
@@ -177,15 +233,38 @@ def create_app(test_config: dict | None = None) -> Flask:
                         f"""
                         SELECT r.reply_id, r.parent_post_id, r.content, r.created_at,
                                COALESCE(r.is_private_after_split, FALSE) AS is_private_after_split,
+                               COALESCE(rlc.like_count, 0) AS like_count,
                                u.user_id, u.username, u.display_name,
-                               m.url AS profile_image_url
+                               m.url AS profile_image_url,
+                               CASE
+                                   WHEN %s IS NULL THEN FALSE
+                                   WHEN EXISTS (
+                                       SELECT 1
+                                       FROM Reactions rr
+                                       JOIN ReactionTypes rrt ON rrt.reaction_type_id = rr.reaction_type_id
+                                       WHERE rr.reply_id = r.reply_id
+                                         AND rr.post_id IS NULL
+                                         AND rr.user_id = %s
+                                         AND rrt.name = 'like'
+                                   ) THEN TRUE
+                                   ELSE FALSE
+                               END AS is_liked
                         FROM Replies r
                         LEFT JOIN Users u ON r.user_id = u.user_id
                         LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                        LEFT JOIN (
+                            SELECT rx.reply_id, COUNT(DISTINCT rx.user_id) AS like_count
+                            FROM Reactions rx
+                            JOIN ReactionTypes rtx ON rtx.reaction_type_id = rx.reaction_type_id
+                            WHERE rx.reply_id IS NOT NULL
+                              AND rx.post_id IS NULL
+                              AND rtx.name = 'like'
+                            GROUP BY rx.reply_id
+                        ) rlc ON rlc.reply_id = r.reply_id
                         WHERE r.is_deleted = FALSE AND r.parent_post_id IN ({placeholders})
                         ORDER BY r.created_at ASC;
                         """,
-                        post_ids,
+                        (viewer_id, viewer_id, *post_ids),
                     )
                     db_replies = cursor.fetchall()
                     for reply in db_replies:
@@ -207,6 +286,8 @@ def create_app(test_config: dict | None = None) -> Flask:
                                 "content": reply.get("content"),
                                 "timestamp": reply.get("created_at"),
                                 "isPrivateAfterSplit": bool(reply.get("is_private_after_split")),
+                                "likes": int(reply.get("like_count") or 0),
+                                "isLiked": bool(reply.get("is_liked")),
                                 "author": {
                                     "id": reply.get("user_id"),
                                     "name": reply.get("display_name")
@@ -279,7 +360,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                         },
                         "content": row.get("content"),
                         "timestamp": row.get("created_at"),
-                        "likes": 0,
+                        "likes": int(row.get("like_count") or 0),
                         "comments": visible_comment_count,
                         "commentsList": rendered_comments,
                         "commentParticipants": (
@@ -296,7 +377,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                         "canComment": bool(row.get("can_comment_replies")),
                         "threadRestricted": bool(row.get("restricted_group_id")),
                         "bookmarks": 0,
-                        "isLiked": False,
+                        "isLiked": bool(row.get("is_liked")),
                         "isBookmarked": False,
                     }
                 )
@@ -467,6 +548,83 @@ def create_app(test_config: dict | None = None) -> Flask:
             logger.error(f"Error creating post (api): {e}")
             return {"error": "Failed to create post"}, 500
 
+    @app.route("/api/posts/<post_id>/like", methods=["POST"])
+    @login_required
+    def toggle_post_like_api(post_id):
+        from uuid import uuid4
+
+        user_id = current_user.get_id()
+        now = datetime.now().isoformat(timespec="seconds")
+
+        try:
+            with get_db(app) as conn:
+                cursor = conn.cursor(cursors.DictCursor)
+                cursor.execute(
+                    "SELECT post_id FROM Posts WHERE post_id = %s AND is_deleted = FALSE LIMIT 1",
+                    (post_id,),
+                )
+                post = cursor.fetchone()
+                if not post:
+                    cursor.close()
+                    return {"error": "Post not found"}, 404
+
+                like_reaction_type_id = _ensure_like_reaction_type(conn)
+                cursor.execute(
+                    """
+                    SELECT reaction_id
+                    FROM Reactions
+                    WHERE user_id = %s
+                      AND post_id = %s
+                      AND reply_id IS NULL
+                      AND reaction_type_id = %s
+                    LIMIT 1;
+                    """,
+                    (user_id, post_id, like_reaction_type_id),
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    cursor.execute(
+                        """
+                        DELETE FROM Reactions
+                        WHERE user_id = %s
+                          AND post_id = %s
+                          AND reply_id IS NULL
+                          AND reaction_type_id = %s;
+                        """,
+                        (user_id, post_id, like_reaction_type_id),
+                    )
+                    is_liked = False
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO Reactions (
+                            reaction_id, user_id, post_id, reply_id, reaction_type_id, created_at, updated_at
+                        )
+                        VALUES (%s, %s, %s, NULL, %s, %s, %s);
+                        """,
+                        (str(uuid4()), user_id, post_id, like_reaction_type_id, now, now),
+                    )
+                    is_liked = True
+
+                cursor.execute(
+                    """
+                    SELECT COUNT(DISTINCT r.user_id) AS likes
+                    FROM Reactions r
+                    JOIN ReactionTypes rt ON rt.reaction_type_id = r.reaction_type_id
+                    WHERE r.post_id = %s
+                      AND r.reply_id IS NULL
+                      AND rt.name = 'like';
+                    """,
+                    (post_id,),
+                )
+                likes_row = cursor.fetchone() or {}
+                cursor.close()
+
+            return {"post_id": post_id, "likes": int(likes_row.get("likes") or 0), "isLiked": is_liked}, 200
+        except Exception as e:
+            logger.error(f"Error toggling post like: {e}")
+            return {"error": "Failed to toggle like"}, 500
+
     @app.route("/api/posts/<post_id>/comments", methods=["POST"])
     @login_required
     def create_comment_api(post_id):
@@ -561,6 +719,106 @@ def create_app(test_config: dict | None = None) -> Flask:
         except Exception as e:
             logger.error(f"Error creating comment (api): {e}")
             return {"error": "Failed to create comment"}, 500
+
+    @app.route("/api/replies/<reply_id>/like", methods=["POST"])
+    @login_required
+    def toggle_reply_like_api(reply_id):
+        from uuid import uuid4
+
+        user_id = current_user.get_id()
+        now = datetime.now().isoformat(timespec="seconds")
+
+        try:
+            with get_db(app) as conn:
+                cursor = conn.cursor(cursors.DictCursor)
+                cursor.execute(
+                    """
+                    SELECT r.reply_id, r.parent_post_id, COALESCE(r.is_private_after_split, FALSE) AS is_private_after_split,
+                           p.user_id AS post_owner_id, p.restricted_group_id
+                    FROM Replies r
+                    LEFT JOIN Posts p ON p.post_id = r.parent_post_id
+                    WHERE r.reply_id = %s
+                      AND r.is_deleted = FALSE;
+                    """,
+                    (reply_id,),
+                )
+                reply = cursor.fetchone()
+                if not reply:
+                    cursor.close()
+                    return {"error": "Reply not found"}, 404
+
+                if reply.get("is_private_after_split") and reply.get("restricted_group_id"):
+                    cursor.execute(
+                        """
+                        SELECT 1
+                        FROM GroupMembers
+                        WHERE group_id = %s AND user_id = %s
+                        LIMIT 1;
+                        """,
+                        (reply.get("restricted_group_id"), user_id),
+                    )
+                    is_member = cursor.fetchone() is not None
+                    is_owner = reply.get("post_owner_id") == user_id
+                    if not is_member and not is_owner:
+                        cursor.close()
+                        return {"error": "Reply is private after split"}, 403
+
+                like_reaction_type_id = _ensure_like_reaction_type(conn)
+                cursor.execute(
+                    """
+                    SELECT reaction_id
+                    FROM Reactions
+                    WHERE user_id = %s
+                      AND reply_id = %s
+                      AND post_id IS NULL
+                      AND reaction_type_id = %s
+                    LIMIT 1;
+                    """,
+                    (user_id, reply_id, like_reaction_type_id),
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    cursor.execute(
+                        """
+                        DELETE FROM Reactions
+                        WHERE user_id = %s
+                          AND reply_id = %s
+                          AND post_id IS NULL
+                          AND reaction_type_id = %s;
+                        """,
+                        (user_id, reply_id, like_reaction_type_id),
+                    )
+                    is_liked = False
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO Reactions (
+                            reaction_id, user_id, post_id, reply_id, reaction_type_id, created_at, updated_at
+                        )
+                        VALUES (%s, %s, NULL, %s, %s, %s, %s);
+                        """,
+                        (str(uuid4()), user_id, reply_id, like_reaction_type_id, now, now),
+                    )
+                    is_liked = True
+
+                cursor.execute(
+                    """
+                    SELECT COUNT(DISTINCT r.user_id) AS likes
+                    FROM Reactions r
+                    JOIN ReactionTypes rt ON rt.reaction_type_id = r.reaction_type_id
+                    WHERE r.reply_id = %s
+                      AND r.post_id IS NULL
+                      AND rt.name = 'like';
+                    """,
+                    (reply_id,),
+                )
+                likes_row = cursor.fetchone() or {}
+                cursor.close()
+
+            return {"reply_id": reply_id, "likes": int(likes_row.get("likes") or 0), "isLiked": is_liked}, 200
+        except Exception as e:
+            logger.error(f"Error toggling reply like: {e}")
+            return {"error": "Failed to toggle reply like"}, 500
 
     @app.route("/api/posts/<post_id>/reply-lock", methods=["POST"])
     @login_required

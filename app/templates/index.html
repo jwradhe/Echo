@@ -164,6 +164,12 @@
                                                         <span class="comment-time">{{ comment.timestamp }}</span>
                                                     </div>
                                                     <p class="comment-content">{{ comment.content }}</p>
+                                                    <div class="reply-actions">
+                                                        <button class="btn btn-link reply-like-btn {% if comment.isLiked %}liked{% endif %}" type="button" data-reply-id="{{ comment.id }}">
+                                                            <i class="bi {% if comment.isLiked %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
+                                                            <span class="reply-like-count">{{ comment.likes or 0 }}</span>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                             {% endif %}

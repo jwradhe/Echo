@@ -355,6 +355,25 @@ body {
   line-height: 1.45;
 }
 
+.reply-actions {
+  margin-top: 0.25rem;
+}
+
+.reply-like-btn {
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 0.15rem 0.25rem;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.reply-like-btn:hover,
+.reply-like-btn.liked {
+  color: #ef4444;
+}
+
 .comment-form {
   margin-top: 0.75rem;
 }
