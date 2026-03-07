@@ -226,6 +226,74 @@ def test_toggle_reply_like_authenticated(client):
     assert unlike_payload["likes"] == 0
 
 
+def test_create_post_with_image_url_authenticated(app, client):
+    """Authenticated user can create post with image URL."""
+    suffix = datetime.now().isoformat(timespec="seconds").replace(":", "")
+    result = _register_user(client, suffix)
+    assert result["response"].status_code == 302
+
+    image_url = "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200"
+    create_resp = client.post(
+        "/api/posts",
+        json={"content": "Post with image", "image_url": image_url},
+    )
+    assert create_resp.status_code == 201
+    post_id = create_resp.get_json()["post_id"]
+
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute(
+            """
+            SELECT url, media_type
+            FROM Media
+            WHERE post_id = %s AND is_deleted = FALSE
+            """,
+            (post_id,),
+        )
+        media_row = cursor.fetchone()
+        cursor.close()
+
+    assert media_row is not None
+    assert media_row["url"] == image_url
+    assert media_row["media_type"] == "image"
+
+
+def test_create_comment_with_image_url_authenticated(app, client):
+    """Authenticated user can create comment with image URL."""
+    suffix = datetime.now().isoformat(timespec="seconds").replace(":", "")
+    result = _register_user(client, suffix)
+    assert result["response"].status_code == 302
+
+    post_resp = client.post("/api/posts", json={"content": "Post for comment image"})
+    assert post_resp.status_code == 201
+    post_id = post_resp.get_json()["post_id"]
+
+    image_url = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1200"
+    comment_resp = client.post(
+        f"/api/posts/{post_id}/comments",
+        json={"content": "Comment with image", "image_url": image_url},
+    )
+    assert comment_resp.status_code == 201
+    reply_id = comment_resp.get_json()["reply_id"]
+
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute(
+            """
+            SELECT url, media_type
+            FROM Media
+            WHERE reply_id = %s AND is_deleted = FALSE
+            """,
+            (reply_id,),
+        )
+        media_row = cursor.fetchone()
+        cursor.close()
+
+    assert media_row is not None
+    assert media_row["url"] == image_url
+    assert media_row["media_type"] == "image"
+
+
 def test_closed_thread_blocks_new_comments(app, client):
     """Post owner can close thread and new comments are blocked."""
     owner_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_owner"

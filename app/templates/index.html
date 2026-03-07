@@ -129,6 +129,9 @@
                                     </div>
                                 </div>
                                 <p class="post-content">{{ post.content }}</p>
+                                {% if post.imageUrl %}
+                                <img src="{{ post.imageUrl }}" alt="Post image" class="post-image">
+                                {% endif %}
                                 <div class="post-actions">
                                     <button class="btn btn-link text-secondary action-btn comment-toggle-btn" type="button">
                                         <i class="bi bi-chat"></i>
@@ -164,6 +167,9 @@
                                                         <span class="comment-time">{{ comment.timestamp }}</span>
                                                     </div>
                                                     <p class="comment-content">{{ comment.content }}</p>
+                                                    {% if comment.imageUrl %}
+                                                    <img src="{{ comment.imageUrl }}" alt="Comment image" class="comment-image">
+                                                    {% endif %}
                                                     <div class="reply-actions">
                                                         <button class="btn btn-link reply-like-btn {% if comment.isLiked %}liked{% endif %}" type="button" data-reply-id="{{ comment.id }}">
                                                             <i class="bi {% if comment.isLiked %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
@@ -185,8 +191,25 @@
                                         {% endif %}
                                         <div class="comment-form">
                                             <textarea class="form-control comment-input" rows="2" maxlength="500" placeholder="{% if not post.canComment %}Svarstråden är stängd.{% else %}Skriv en kommentar...{% endif %}" {% if not post.canComment %}disabled{% endif %}></textarea>
+                                            <div class="comment-image-url-wrap mt-2 d-none">
+                                                <input class="form-control comment-image-url-input" type="url" placeholder="Paste image URL (https://...)">
+                                            </div>
+                                            <div class="comment-emoji-picker d-none mt-2">
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">😀</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">😂</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">😍</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">🔥</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">🙏</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">👍</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">🎉</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">💯</button>
+                                            </div>
                                             <div class="comment-form-footer">
-                                                <small class="text-secondary comment-charcount">0/500</small>
+                                                <div class="d-flex gap-2 align-items-center">
+                                                    <button class="btn btn-link text-secondary p-0 comment-image-toggle-btn" type="button"><i class="bi bi-image"></i></button>
+                                                    <button class="btn btn-link text-secondary p-0 comment-emoji-toggle-btn" type="button"><i class="bi bi-emoji-smile"></i></button>
+                                                    <small class="text-secondary comment-charcount">0/500</small>
+                                                </div>
                                                 <button class="btn btn-primary btn-sm rounded-pill comment-submit-btn" type="button" disabled {% if not post.canComment %}disabled{% endif %}>Kommentera</button>
                                             </div>
                                         </div>
@@ -256,10 +279,23 @@
                         <img src="{{ current_user.profile_image_url or default_avatar_url }}" alt="User avatar" class="post-avatar">
                         <div class="flex-grow-1">
                             <textarea class="form-control composer-textarea" id="postContent" placeholder="What do you want to echo?" maxlength="500"></textarea>
+                            <div id="composerImageUrlWrap" class="mt-2 d-none">
+                                <input class="form-control" id="postImageUrl" type="url" placeholder="Paste image URL (https://...)">
+                            </div>
+                            <div id="emojiPicker" class="emoji-picker d-none mt-2">
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">😀</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">😂</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">😍</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">🔥</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">🙏</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">👍</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">🎉</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">💯</button>
+                            </div>
                             <div class="composer-actions mt-2">
                                 <div class="d-flex gap-2">
-                                    <button class="btn btn-link text-secondary"><i class="bi bi-image"></i></button>
-                                    <button class="btn btn-link text-secondary"><i class="bi bi-emoji-smile"></i></button>
+                                    <button class="btn btn-link text-secondary" id="toggleImageUrlBtn" type="button"><i class="bi bi-image"></i></button>
+                                    <button class="btn btn-link text-secondary" id="toggleEmojiPickerBtn" type="button"><i class="bi bi-emoji-smile"></i></button>
                                 </div>
                                 <div class="d-flex gap-2 align-items-center">
                                     <span class="text-secondary small" id="charCount">0/500</span>

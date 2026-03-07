@@ -2,6 +2,7 @@ import os
 import logging
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import LoginManager, current_user, login_required
@@ -99,6 +100,15 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(profile_bp)
 
+    def _is_valid_http_url(value: str) -> bool:
+        if not value:
+            return False
+        try:
+            parsed = urlparse(value)
+            return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+        except Exception:
+            return False
+
     def _ensure_like_reaction_type(conn) -> str:
         """Ensure a 'like' reaction type exists and return its ID."""
         from uuid import uuid4
@@ -140,6 +150,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                     SELECT p.post_id, p.content, p.created_at, p.updated_at,
                            u.user_id, u.username, u.display_name,
                            m.url AS profile_image_url,
+                           pm.url AS post_image_url,
                            COALESCE(rc.reply_count, 0) AS reply_count,
                            COALESCE(plc.like_count, 0) AS like_count,
                            COALESCE(p.replies_closed, FALSE) AS replies_closed,
@@ -190,6 +201,22 @@ def create_app(test_config: dict | None = None) -> Flask:
                     LEFT JOIN Users u ON p.user_id = u.user_id
                     LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
                     LEFT JOIN (
+                        SELECT m1.post_id, m1.url
+                        FROM Media m1
+                        JOIN (
+                            SELECT post_id, MIN(created_at) AS min_created_at
+                            FROM Media
+                            WHERE post_id IS NOT NULL
+                              AND media_type = 'image'
+                              AND is_deleted = FALSE
+                            GROUP BY post_id
+                        ) first_media
+                          ON first_media.post_id = m1.post_id
+                         AND first_media.min_created_at = m1.created_at
+                        WHERE m1.media_type = 'image'
+                          AND m1.is_deleted = FALSE
+                    ) pm ON pm.post_id = p.post_id
+                    LEFT JOIN (
                         SELECT parent_post_id, COUNT(*) AS reply_count
                         FROM Replies
                         WHERE is_deleted = FALSE
@@ -236,6 +263,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                                COALESCE(rlc.like_count, 0) AS like_count,
                                u.user_id, u.username, u.display_name,
                                m.url AS profile_image_url,
+                               rm.url AS reply_image_url,
                                CASE
                                    WHEN %s IS NULL THEN FALSE
                                    WHEN EXISTS (
@@ -252,6 +280,22 @@ def create_app(test_config: dict | None = None) -> Flask:
                         FROM Replies r
                         LEFT JOIN Users u ON r.user_id = u.user_id
                         LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                        LEFT JOIN (
+                            SELECT m2.reply_id, m2.url
+                            FROM Media m2
+                            JOIN (
+                                SELECT reply_id, MIN(created_at) AS min_created_at
+                                FROM Media
+                                WHERE reply_id IS NOT NULL
+                                  AND media_type = 'image'
+                                  AND is_deleted = FALSE
+                                GROUP BY reply_id
+                            ) first_reply_media
+                              ON first_reply_media.reply_id = m2.reply_id
+                             AND first_reply_media.min_created_at = m2.created_at
+                            WHERE m2.media_type = 'image'
+                              AND m2.is_deleted = FALSE
+                        ) rm ON rm.reply_id = r.reply_id
                         LEFT JOIN (
                             SELECT rx.reply_id, COUNT(DISTINCT rx.user_id) AS like_count
                             FROM Reactions rx
@@ -285,6 +329,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                                 "id": reply.get("reply_id"),
                                 "content": reply.get("content"),
                                 "timestamp": reply.get("created_at"),
+                                "imageUrl": reply.get("reply_image_url"),
                                 "isPrivateAfterSplit": bool(reply.get("is_private_after_split")),
                                 "likes": int(reply.get("like_count") or 0),
                                 "isLiked": bool(reply.get("is_liked")),
@@ -359,6 +404,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                             "avatar": row.get("profile_image_url") or default_avatar_url,
                         },
                         "content": row.get("content"),
+                        "imageUrl": row.get("post_image_url"),
                         "timestamp": row.get("created_at"),
                         "likes": int(row.get("like_count") or 0),
                         "comments": visible_comment_count,
@@ -518,10 +564,13 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         payload = request.get_json(silent=True) or {}
         content = (payload.get("content") or "").strip()
+        image_url = (payload.get("image_url") or "").strip()
         user_id = current_user.get_id()
 
         if not content:
             return {"error": "Content is required"}, 400
+        if image_url and not _is_valid_http_url(image_url):
+            return {"error": "image_url must be a valid http/https URL"}, 400
 
         try:
             post_id = str(uuid4())
@@ -536,11 +585,21 @@ def create_app(test_config: dict | None = None) -> Flask:
                     """,
                     (post_id, user_id, content, now, now),
                 )
+                if image_url:
+                    media_id = str(uuid4())
+                    cursor.execute(
+                        """
+                        INSERT INTO Media (media_id, post_id, reply_id, url, media_type, created_at, updated_at)
+                        VALUES (%s, %s, NULL, %s, %s, %s, %s);
+                        """,
+                        (media_id, post_id, image_url, "image", now, now),
+                    )
                 cursor.close()
 
             return {
                 "post_id": post_id,
                 "content": content,
+                "image_url": image_url or None,
                 "created_at": now,
                 "user_id": user_id,
             }, 201
@@ -637,6 +696,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         payload = request.get_json(silent=True) or {}
         content = (payload.get("content") or "").strip()
+        image_url = (payload.get("image_url") or "").strip()
         user_id = current_user.get_id()
 
         if not content:
@@ -644,6 +704,8 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         if len(content) > 500:
             return {"error": "Max 500 characters"}, 400
+        if image_url and not _is_valid_http_url(image_url):
+            return {"error": "image_url must be a valid http/https URL"}, 400
 
         try:
             now = datetime.now().isoformat(timespec="seconds")
@@ -692,6 +754,14 @@ def create_app(test_config: dict | None = None) -> Flask:
                     """,
                     (reply_id, post_id, user_id, content, is_private_thread, now, now),
                 )
+                if image_url:
+                    cursor.execute(
+                        """
+                        INSERT INTO Media (media_id, post_id, reply_id, url, media_type, created_at, updated_at)
+                        VALUES (%s, NULL, %s, %s, %s, %s, %s);
+                        """,
+                        (str(uuid4()), reply_id, image_url, "image", now, now),
+                    )
 
                 cursor.execute(
                     """
@@ -709,6 +779,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                 "reply_id": reply_id,
                 "post_id": post_id,
                 "content": content,
+                "image_url": image_url or None,
                 "created_at": now,
                 "author": {
                     "id": author.get("user_id"),
