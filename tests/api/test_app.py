@@ -1,5 +1,6 @@
 from datetime import datetime
 from io import BytesIO
+from uuid import uuid4
 import pymysql
 from PIL import Image
 from app.db import get_db
@@ -43,6 +44,30 @@ def test_api_posts_requires_login(client):
     assert resp.status_code == 401
 
 
+def test_api_comments_requires_login(client, app):
+    """Comment API should return 401 when unauthenticated."""
+    post_id = str(uuid4())
+    now = datetime.now().isoformat(timespec="seconds")
+
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute("SELECT user_id FROM Users WHERE is_deleted = FALSE LIMIT 1")
+        user_row = cursor.fetchone()
+        assert user_row is not None
+        cursor.execute(
+            """
+            INSERT INTO Posts (post_id, user_id, content, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (post_id, user_row["user_id"], "Comment auth test post", now, now),
+        )
+        conn.commit()
+        cursor.close()
+
+    resp = client.post(f"/api/posts/{post_id}/comments", json={"content": "Test"})
+    assert resp.status_code == 401
+
+
 def test_create_echo_authenticated(app, client):
     """Test creating a new echo/post with an authenticated user."""
     suffix = datetime.now().isoformat(timespec="seconds").replace(":", "")
@@ -69,6 +94,46 @@ def test_create_echo_authenticated(app, client):
 
     assert row is not None
     assert row["content"] == test_content
+
+
+def test_create_comment_authenticated(app, client):
+    """Authenticated user can comment on an existing post."""
+    suffix = datetime.now().isoformat(timespec="seconds").replace(":", "")
+    result = _register_user(client, suffix)
+    assert result["response"].status_code == 302
+
+    post_content = "Post for comment " + datetime.now().isoformat(timespec="seconds")
+    create_resp = client.post("/api/posts", json={"content": post_content})
+    assert create_resp.status_code == 201
+    post_id = create_resp.get_json()["post_id"]
+
+    comment_content = "Comment test " + datetime.now().isoformat(timespec="seconds")
+    comment_resp = client.post(
+        f"/api/posts/{post_id}/comments",
+        json={"content": comment_content},
+    )
+    assert comment_resp.status_code == 201
+
+    payload = comment_resp.get_json()
+    assert payload["post_id"] == post_id
+    assert payload["content"] == comment_content
+
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute(
+            """
+            SELECT content, parent_post_id
+            FROM Replies
+            WHERE parent_post_id = %s AND content = %s AND is_deleted = FALSE
+            """,
+            (post_id, comment_content),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+
+    assert row is not None
+    assert row["parent_post_id"] == post_id
+    assert row["content"] == comment_content
 
 
 def test_echo_visible_on_dashboard(client):

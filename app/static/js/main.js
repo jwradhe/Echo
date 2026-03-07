@@ -3,6 +3,49 @@ const postBtn = document.getElementById('postBtn');
 const postContent = document.getElementById('postContent');
 const charCount = document.getElementById('charCount');
 
+function formatTimestamp(raw) {
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function createCommentElement(comment) {
+    const item = document.createElement('div');
+    item.className = 'comment-item';
+
+    const avatar = document.createElement('img');
+    avatar.className = 'comment-avatar';
+    avatar.src = comment.author.avatar;
+    avatar.alt = comment.author.name;
+
+    const body = document.createElement('div');
+    body.className = 'comment-body';
+
+    const meta = document.createElement('div');
+    meta.className = 'comment-meta';
+
+    const author = document.createElement('span');
+    author.className = 'comment-author';
+    author.textContent = comment.author.name;
+
+    const separator = document.createElement('span');
+    separator.className = 'text-secondary';
+    separator.textContent = '·';
+
+    const time = document.createElement('span');
+    time.className = 'comment-time';
+    time.textContent = formatTimestamp(comment.created_at);
+
+    const content = document.createElement('p');
+    content.className = 'comment-content';
+    content.textContent = comment.content;
+
+    meta.append(author, separator, time);
+    body.append(meta, content);
+    item.append(avatar, body);
+    return item;
+}
+
 
 // Rensa composer när modalen öppnas
 const composerModal = document.getElementById('composerModal');
@@ -105,9 +148,81 @@ document.addEventListener('click', async (e) => {
 
 // Update all timestamps
 document.querySelectorAll('.post-time').forEach(el => {
-    const timestamp = el.textContent;
-    const date = new Date(timestamp);
-    el.textContent = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    el.textContent = formatTimestamp(el.textContent);
+});
+
+document.querySelectorAll('.comment-time').forEach(el => {
+    el.textContent = formatTimestamp(el.textContent);
+});
+
+document.addEventListener('click', async (e) => {
+    const toggleBtn = e.target.closest('.comment-toggle-btn');
+    if (toggleBtn) {
+        const postCard = toggleBtn.closest('.post-card');
+        const section = postCard?.querySelector('.comments-section');
+        if (section) {
+            section.classList.toggle('d-none');
+        }
+        return;
+    }
+
+    const submitBtn = e.target.closest('.comment-submit-btn');
+    if (!submitBtn) return;
+
+    const postCard = submitBtn.closest('.post-card');
+    const input = postCard?.querySelector('.comment-input');
+    const commentsList = postCard?.querySelector('.comments-list');
+    const postId = postCard?.dataset.postId;
+    if (!postCard || !input || !commentsList || !postId) return;
+
+    const content = input.value.trim();
+    if (!content) return;
+
+    submitBtn.disabled = true;
+    const previousLabel = submitBtn.textContent;
+    submitBtn.textContent = 'Skickar...';
+
+    try {
+        const response = await fetch(`/api/posts/${postId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content }),
+        });
+
+        if (!response.ok) {
+            throw new Error('failed');
+        }
+
+        const comment = await response.json();
+        commentsList.append(createCommentElement(comment));
+        input.value = '';
+
+        const charCountEl = postCard.querySelector('.comment-charcount');
+        if (charCountEl) charCountEl.textContent = '0/500';
+
+        const countEl = postCard.querySelector('.comment-count');
+        if (countEl) {
+            const current = parseInt(countEl.textContent, 10) || 0;
+            countEl.textContent = `${current + 1}`;
+        }
+    } catch (_err) {
+        showAlert('Kunde inte posta kommentaren.', 'alert-danger');
+    } finally {
+        submitBtn.textContent = previousLabel;
+        submitBtn.disabled = !input.value.trim();
+    }
+});
+
+document.addEventListener('input', (e) => {
+    const commentInput = e.target.closest('.comment-input');
+    if (!commentInput) return;
+
+    const postCard = commentInput.closest('.post-card');
+    const countEl = postCard?.querySelector('.comment-charcount');
+    const submitBtn = postCard?.querySelector('.comment-submit-btn');
+    const length = commentInput.value.length;
+    if (countEl) countEl.textContent = `${length}/500`;
+    if (submitBtn) submitBtn.disabled = length === 0 || length > 500;
 });
 
 window.startInlineEdit = function(btn) {

@@ -107,16 +107,59 @@ def create_app(test_config: dict | None = None) -> Flask:
                     """
                     SELECT p.post_id, p.content, p.created_at, p.updated_at,
                            u.user_id, u.username, u.display_name,
-                           m.url AS profile_image_url
+                           m.url AS profile_image_url,
+                           COALESCE(rc.reply_count, 0) AS reply_count
                     FROM Posts p
                     LEFT JOIN Users u ON p.user_id = u.user_id
                     LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                    LEFT JOIN (
+                        SELECT parent_post_id, COUNT(*) AS reply_count
+                        FROM Replies
+                        WHERE is_deleted = FALSE
+                        GROUP BY parent_post_id
+                    ) rc ON rc.parent_post_id = p.post_id
                     WHERE p.is_deleted = FALSE
                     ORDER BY p.created_at DESC
                     LIMIT 50;
                     """
                 )
                 db_posts = cursor.fetchall()
+                post_ids = [row.get("post_id") for row in db_posts if row.get("post_id")]
+                replies_by_post = {}
+                if post_ids:
+                    placeholders = ", ".join(["%s"] * len(post_ids))
+                    cursor.execute(
+                        f"""
+                        SELECT r.reply_id, r.parent_post_id, r.content, r.created_at,
+                               u.user_id, u.username, u.display_name,
+                               m.url AS profile_image_url
+                        FROM Replies r
+                        LEFT JOIN Users u ON r.user_id = u.user_id
+                        LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                        WHERE r.is_deleted = FALSE AND r.parent_post_id IN ({placeholders})
+                        ORDER BY r.created_at ASC;
+                        """,
+                        post_ids,
+                    )
+                    db_replies = cursor.fetchall()
+                    for reply in db_replies:
+                        parent_post_id = reply.get("parent_post_id")
+                        if not parent_post_id:
+                            continue
+                        replies_by_post.setdefault(parent_post_id, []).append(
+                            {
+                                "id": reply.get("reply_id"),
+                                "content": reply.get("content"),
+                                "timestamp": reply.get("created_at"),
+                                "author": {
+                                    "id": reply.get("user_id"),
+                                    "name": reply.get("display_name")
+                                    or reply.get("username")
+                                    or "Unknown",
+                                    "avatar": reply.get("profile_image_url") or default_avatar_url,
+                                },
+                            }
+                        )
                 cursor.close()
 
             posts = []
@@ -135,7 +178,8 @@ def create_app(test_config: dict | None = None) -> Flask:
                         "content": row.get("content"),
                         "timestamp": row.get("created_at"),
                         "likes": 0,
-                        "comments": 0,
+                        "comments": int(row.get("reply_count") or 0),
+                        "commentsList": replies_by_post.get(row.get("post_id"), []),
                         "bookmarks": 0,
                         "isLiked": False,
                         "isBookmarked": False,
@@ -307,5 +351,81 @@ def create_app(test_config: dict | None = None) -> Flask:
         except Exception as e:
             logger.error(f"Error creating post (api): {e}")
             return {"error": "Failed to create post"}, 500
+
+    @app.route("/api/posts/<post_id>/comments", methods=["POST"])
+    @login_required
+    def create_comment_api(post_id):
+        from uuid import uuid4
+
+        default_avatar_url = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
+
+        if not post_id:
+            return {"error": "Post ID is required"}, 400
+
+        payload = request.get_json(silent=True) or {}
+        content = (payload.get("content") or "").strip()
+        user_id = current_user.get_id()
+
+        if not content:
+            return {"error": "Content is required"}, 400
+
+        if len(content) > 500:
+            return {"error": "Max 500 characters"}, 400
+
+        try:
+            now = datetime.now().isoformat(timespec="seconds")
+            reply_id = str(uuid4())
+
+            with get_db(app) as conn:
+                cursor = conn.cursor(cursors.DictCursor)
+                cursor.execute(
+                    """
+                    SELECT post_id
+                    FROM Posts
+                    WHERE post_id = %s AND is_deleted = FALSE;
+                    """,
+                    (post_id,),
+                )
+                post = cursor.fetchone()
+                if not post:
+                    cursor.close()
+                    return {"error": "Post not found"}, 404
+
+                cursor.execute(
+                    """
+                    INSERT INTO Replies (
+                        reply_id, parent_post_id, parent_reply_id, user_id, content, created_at, updated_at
+                    )
+                    VALUES (%s, %s, NULL, %s, %s, %s, %s);
+                    """,
+                    (reply_id, post_id, user_id, content, now, now),
+                )
+
+                cursor.execute(
+                    """
+                    SELECT u.user_id, u.username, u.display_name, m.url AS profile_image_url
+                    FROM Users u
+                    LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                    WHERE u.user_id = %s;
+                    """,
+                    (user_id,),
+                )
+                author = cursor.fetchone() or {}
+                cursor.close()
+
+            return {
+                "reply_id": reply_id,
+                "post_id": post_id,
+                "content": content,
+                "created_at": now,
+                "author": {
+                    "id": author.get("user_id"),
+                    "name": author.get("display_name") or author.get("username") or "Unknown",
+                    "avatar": author.get("profile_image_url") or default_avatar_url,
+                },
+            }, 201
+        except Exception as e:
+            logger.error(f"Error creating comment (api): {e}")
+            return {"error": "Failed to create comment"}, 500
     
     return app
