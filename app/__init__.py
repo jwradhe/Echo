@@ -6,7 +6,13 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import LoginManager, current_user, login_required
 from pymysql import cursors
-from .db import get_db, init_connection_pool, ensure_default_user, ensure_default_admin
+from .db import (
+    get_db,
+    init_connection_pool,
+    ensure_default_user,
+    ensure_default_admin,
+    ensure_post_thread_controls_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +53,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         ensure_default_user(app)
         if env == "development":
             ensure_default_admin(app)
+        ensure_post_thread_controls_schema(app)
     except Exception as e:
         logger.error(f"Failed to initialize database connection: {e}")
         if app.config.get("ENV") == "production":
@@ -100,6 +107,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     def index():
         try:
             default_avatar_url = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
+            viewer_id = current_user.get_id() if current_user.is_authenticated else None
 
             with get_db(app) as conn:
                 cursor = conn.cursor(cursors.DictCursor)
@@ -107,25 +115,162 @@ def create_app(test_config: dict | None = None) -> Flask:
                     """
                     SELECT p.post_id, p.content, p.created_at, p.updated_at,
                            u.user_id, u.username, u.display_name,
-                           m.url AS profile_image_url
+                           m.url AS profile_image_url,
+                           COALESCE(rc.reply_count, 0) AS reply_count,
+                           COALESCE(p.replies_closed, FALSE) AS replies_closed,
+                           p.replies_closed_at,
+                           p.restricted_group_id,
+                           p.restricted_at,
+                           CASE
+                               WHEN p.restricted_group_id IS NULL THEN TRUE
+                               WHEN %s IS NULL THEN FALSE
+                               WHEN p.user_id = %s THEN TRUE
+                               WHEN EXISTS (
+                                   SELECT 1
+                                   FROM GroupMembers gm
+                                   WHERE gm.group_id = p.restricted_group_id
+                                     AND gm.user_id = %s
+                               ) THEN TRUE
+                               ELSE FALSE
+                           END AS can_view_replies,
+                           CASE
+                               WHEN p.restricted_group_id IS NOT NULL AND %s IS NOT NULL THEN
+                                   CASE
+                                       WHEN p.user_id = %s THEN TRUE
+                                       WHEN EXISTS (
+                                           SELECT 1
+                                           FROM GroupMembers gm2
+                                           WHERE gm2.group_id = p.restricted_group_id
+                                             AND gm2.user_id = %s
+                                       ) THEN TRUE
+                                       ELSE FALSE
+                                   END
+                               WHEN p.restricted_group_id IS NULL AND COALESCE(p.replies_closed, FALSE) = FALSE THEN TRUE
+                               ELSE FALSE
+                           END AS can_comment_replies
                     FROM Posts p
                     LEFT JOIN Users u ON p.user_id = u.user_id
                     LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                    LEFT JOIN (
+                        SELECT parent_post_id, COUNT(*) AS reply_count
+                        FROM Replies
+                        WHERE is_deleted = FALSE
+                        GROUP BY parent_post_id
+                    ) rc ON rc.parent_post_id = p.post_id
                     WHERE p.is_deleted = FALSE
                     ORDER BY p.created_at DESC
                     LIMIT 50;
-                    """
+                    """,
+                    (viewer_id, viewer_id, viewer_id, viewer_id, viewer_id, viewer_id),
                 )
                 db_posts = cursor.fetchall()
+                post_ids = [
+                    row.get("post_id")
+                    for row in db_posts
+                    if row.get("post_id")
+                ]
+                replies_by_post = {}
+                participants_by_post = {}
+                if post_ids:
+                    placeholders = ", ".join(["%s"] * len(post_ids))
+                    cursor.execute(
+                        f"""
+                        SELECT r.reply_id, r.parent_post_id, r.content, r.created_at,
+                               COALESCE(r.is_private_after_split, FALSE) AS is_private_after_split,
+                               u.user_id, u.username, u.display_name,
+                               m.url AS profile_image_url
+                        FROM Replies r
+                        LEFT JOIN Users u ON r.user_id = u.user_id
+                        LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                        WHERE r.is_deleted = FALSE AND r.parent_post_id IN ({placeholders})
+                        ORDER BY r.created_at ASC;
+                        """,
+                        post_ids,
+                    )
+                    db_replies = cursor.fetchall()
+                    for reply in db_replies:
+                        parent_post_id = reply.get("parent_post_id")
+                        if not parent_post_id:
+                            continue
+                        participant = {
+                            "id": reply.get("user_id"),
+                            "name": reply.get("display_name")
+                            or reply.get("username")
+                            or "Unknown",
+                        }
+                        if participant["id"]:
+                            participants_by_post.setdefault(parent_post_id, {})
+                            participants_by_post[parent_post_id][participant["id"]] = participant
+                        replies_by_post.setdefault(parent_post_id, []).append(
+                            {
+                                "id": reply.get("reply_id"),
+                                "content": reply.get("content"),
+                                "timestamp": reply.get("created_at"),
+                                "isPrivateAfterSplit": bool(reply.get("is_private_after_split")),
+                                "author": {
+                                    "id": reply.get("user_id"),
+                                    "name": reply.get("display_name")
+                                    or reply.get("username")
+                                    or "Unknown",
+                                    "avatar": reply.get("profile_image_url") or default_avatar_url,
+                                },
+                            }
+                        )
                 cursor.close()
 
             posts = []
             for row in db_posts:
                 display_name = row.get("display_name") or row.get("username") or "Unknown"
                 username = row.get("username") or "unknown"
+                post_id = row.get("post_id")
+                all_replies = replies_by_post.get(post_id, [])
+                can_view_all_replies = bool(row.get("can_view_replies"))
+                restricted_at = row.get("restricted_at")
+                visible_comment_count = 0
+                if can_view_all_replies:
+                    visible_replies = all_replies
+                elif row.get("restricted_group_id"):
+                    visible_replies = [
+                        reply for reply in all_replies if not reply.get("isPrivateAfterSplit")
+                    ]
+                else:
+                    visible_replies = all_replies
+
+                rendered_comments = list(visible_replies)
+                if row.get("restricted_group_id") and restricted_at:
+                    before_split = [reply for reply in all_replies if not reply.get("isPrivateAfterSplit")]
+                    if can_view_all_replies:
+                        after_split = [reply for reply in all_replies if reply.get("isPrivateAfterSplit")]
+                        rendered_comments = before_split + [
+                            {
+                                "isMarker": True,
+                                "label": "Diskussionen bröts ut här",
+                                "timestamp": restricted_at,
+                            }
+                        ] + after_split
+                    else:
+                        rendered_comments = before_split + [
+                            {
+                                "isMarker": True,
+                                "label": "Diskussionen bröts ut här",
+                                "timestamp": restricted_at,
+                            }
+                        ]
+
+                if row.get("replies_closed") and not row.get("restricted_group_id"):
+                    rendered_comments = rendered_comments + [
+                        {
+                            "isMarker": True,
+                            "label": "Svarstråden stängdes här",
+                            "timestamp": row.get("replies_closed_at"),
+                        }
+                    ]
+
+                visible_comment_count = len([reply for reply in rendered_comments if not reply.get("isMarker")])
+
                 posts.append(
                     {
-                        "id": row.get("post_id"),
+                        "id": post_id,
                         "author": {
                             "id": row.get("user_id"),
                             "name": display_name,
@@ -135,7 +280,21 @@ def create_app(test_config: dict | None = None) -> Flask:
                         "content": row.get("content"),
                         "timestamp": row.get("created_at"),
                         "likes": 0,
-                        "comments": 0,
+                        "comments": visible_comment_count,
+                        "commentsList": rendered_comments,
+                        "commentParticipants": (
+                            [
+                                participant
+                                for participant in list(participants_by_post.get(post_id, {}).values())
+                                if participant.get("id") != viewer_id
+                            ]
+                            if can_view_all_replies
+                            else []
+                        ),
+                        "threadClosed": bool(row.get("replies_closed")),
+                        "canViewComments": True,
+                        "canComment": bool(row.get("can_comment_replies")),
+                        "threadRestricted": bool(row.get("restricted_group_id")),
                         "bookmarks": 0,
                         "isLiked": False,
                         "isBookmarked": False,
@@ -307,5 +466,273 @@ def create_app(test_config: dict | None = None) -> Flask:
         except Exception as e:
             logger.error(f"Error creating post (api): {e}")
             return {"error": "Failed to create post"}, 500
+
+    @app.route("/api/posts/<post_id>/comments", methods=["POST"])
+    @login_required
+    def create_comment_api(post_id):
+        from uuid import uuid4
+
+        default_avatar_url = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
+
+        if not post_id:
+            return {"error": "Post ID is required"}, 400
+
+        payload = request.get_json(silent=True) or {}
+        content = (payload.get("content") or "").strip()
+        user_id = current_user.get_id()
+
+        if not content:
+            return {"error": "Content is required"}, 400
+
+        if len(content) > 500:
+            return {"error": "Max 500 characters"}, 400
+
+        try:
+            now = datetime.now().isoformat(timespec="seconds")
+            reply_id = str(uuid4())
+
+            with get_db(app) as conn:
+                cursor = conn.cursor(cursors.DictCursor)
+                cursor.execute(
+                    """
+                    SELECT post_id, replies_closed, restricted_group_id, user_id
+                    FROM Posts
+                    WHERE post_id = %s AND is_deleted = FALSE;
+                    """,
+                    (post_id,),
+                )
+                post = cursor.fetchone()
+                if not post:
+                    cursor.close()
+                    return {"error": "Post not found"}, 404
+                is_private_thread = bool(post.get("restricted_group_id"))
+                if is_private_thread:
+                    cursor.execute(
+                        """
+                        SELECT 1
+                        FROM GroupMembers
+                        WHERE group_id = %s AND user_id = %s
+                        LIMIT 1;
+                        """,
+                        (post.get("restricted_group_id"), user_id),
+                    )
+                    is_member = cursor.fetchone() is not None
+                    is_owner = post.get("user_id") == user_id
+                    if not is_member and not is_owner:
+                        cursor.close()
+                        return {"error": "Thread is private after split"}, 403
+                if post.get("replies_closed") and not is_private_thread:
+                    cursor.close()
+                    return {"error": "Thread is closed for replies"}, 403
+
+                cursor.execute(
+                    """
+                    INSERT INTO Replies (
+                        reply_id, parent_post_id, parent_reply_id, user_id, content, is_private_after_split, created_at, updated_at
+                    )
+                    VALUES (%s, %s, NULL, %s, %s, %s, %s, %s);
+                    """,
+                    (reply_id, post_id, user_id, content, is_private_thread, now, now),
+                )
+
+                cursor.execute(
+                    """
+                    SELECT u.user_id, u.username, u.display_name, m.url AS profile_image_url
+                    FROM Users u
+                    LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                    WHERE u.user_id = %s;
+                    """,
+                    (user_id,),
+                )
+                author = cursor.fetchone() or {}
+                cursor.close()
+
+            return {
+                "reply_id": reply_id,
+                "post_id": post_id,
+                "content": content,
+                "created_at": now,
+                "author": {
+                    "id": author.get("user_id"),
+                    "name": author.get("display_name") or author.get("username") or "Unknown",
+                    "avatar": author.get("profile_image_url") or default_avatar_url,
+                },
+            }, 201
+        except Exception as e:
+            logger.error(f"Error creating comment (api): {e}")
+            return {"error": "Failed to create comment"}, 500
+
+    @app.route("/api/posts/<post_id>/reply-lock", methods=["POST"])
+    @login_required
+    def toggle_post_reply_lock(post_id):
+        payload = request.get_json(silent=True) or {}
+        requested_state = payload.get("is_closed")
+        if not isinstance(requested_state, bool):
+            return {"error": "is_closed must be a boolean"}, 400
+
+        user_id = current_user.get_id()
+        now = datetime.now().isoformat(timespec="seconds")
+
+        try:
+            with get_db(app) as conn:
+                cursor = conn.cursor(cursors.DictCursor)
+                cursor.execute(
+                    """
+                    SELECT post_id, user_id, replies_closed, restricted_group_id
+                    FROM Posts
+                    WHERE post_id = %s AND is_deleted = FALSE;
+                    """,
+                    (post_id,),
+                )
+                post = cursor.fetchone()
+                if not post:
+                    cursor.close()
+                    return {"error": "Post not found"}, 404
+                if post.get("user_id") != user_id:
+                    cursor.close()
+                    return {"error": "Only post owner can change thread state"}, 403
+                if post.get("restricted_group_id") and not requested_state:
+                    cursor.close()
+                    return {"error": "Thread is private after split and cannot be reopened"}, 400
+
+                cursor.execute(
+                    """
+                    UPDATE Posts
+                    SET replies_closed = %s,
+                        replies_closed_by = %s,
+                        replies_closed_at = CASE WHEN %s THEN %s ELSE NULL END,
+                        updated_at = %s
+                    WHERE post_id = %s;
+                    """,
+                    (requested_state, user_id, requested_state, now, now, post_id),
+                )
+                cursor.close()
+
+            return {"post_id": post_id, "is_closed": requested_state}, 200
+        except Exception as e:
+            logger.error(f"Error toggling reply lock: {e}")
+            return {"error": "Failed to update thread state"}, 500
+
+    @app.route("/api/posts/<post_id>/discussion-groups", methods=["POST"])
+    @login_required
+    def create_discussion_group(post_id):
+        from uuid import uuid4
+
+        payload = request.get_json(silent=True) or {}
+        selected_user_ids = payload.get("participant_user_ids") or []
+        group_name = (payload.get("name") or "").strip()
+        creator_id = current_user.get_id()
+
+        if not isinstance(selected_user_ids, list):
+            return {"error": "participant_user_ids must be a list"}, 400
+
+        cleaned_selected_ids = [str(uid).strip() for uid in selected_user_ids if str(uid).strip()]
+        cleaned_selected_ids = list(dict.fromkeys(cleaned_selected_ids))
+        cleaned_selected_ids = [uid for uid in cleaned_selected_ids if uid != creator_id]
+
+        if not cleaned_selected_ids:
+            return {"error": "Choose at least one other participant"}, 400
+
+        try:
+            now = datetime.now().isoformat(timespec="seconds")
+            with get_db(app) as conn:
+                cursor = conn.cursor(cursors.DictCursor)
+                cursor.execute(
+                    """
+                    SELECT post_id, user_id, content
+                    FROM Posts
+                    WHERE post_id = %s AND is_deleted = FALSE;
+                    """,
+                    (post_id,),
+                )
+                post = cursor.fetchone()
+                if not post:
+                    cursor.close()
+                    return {"error": "Post not found"}, 404
+                if post.get("user_id") != creator_id:
+                    cursor.close()
+                    return {"error": "Only post owner can split discussion"}, 403
+
+                cursor.execute(
+                    """
+                    SELECT DISTINCT r.user_id, COALESCE(u.display_name, u.username, 'Unknown') AS name
+                    FROM Replies r
+                    LEFT JOIN Users u ON u.user_id = r.user_id
+                    WHERE r.parent_post_id = %s
+                      AND r.is_deleted = FALSE
+                      AND u.is_deleted = FALSE
+                      AND r.user_id <> %s;
+                    """,
+                    (post_id, creator_id),
+                )
+                eligible_rows = cursor.fetchall()
+                eligible_map = {row["user_id"]: row["name"] for row in eligible_rows if row.get("user_id")}
+                valid_selected = [uid for uid in cleaned_selected_ids if uid in eligible_map]
+                if not valid_selected:
+                    cursor.close()
+                    return {"error": "Selected users must be commenters on this post"}, 400
+
+                group_id = str(uuid4())
+                effective_name = group_name or f"Diskussion: {post.get('content', '')[:40]}".strip()
+                if not effective_name:
+                    effective_name = "Ny diskussion"
+
+                cursor.execute(
+                    """
+                    INSERT INTO UserGroups (
+                        group_id, created_by, origin_post_id, name, description, created_at, updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s);
+                    """,
+                    (
+                        group_id,
+                        creator_id,
+                        post_id,
+                        effective_name[:255],
+                        "Utbryten diskussion från kommentarstråd",
+                        now,
+                        now,
+                    ),
+                )
+
+                member_ids = [creator_id, *valid_selected]
+                unique_member_ids = list(dict.fromkeys(member_ids))
+                for member_id in unique_member_ids:
+                    cursor.execute(
+                        """
+                        INSERT INTO GroupMembers (group_id, user_id, joined_at, updated_at)
+                        VALUES (%s, %s, %s, %s);
+                        """,
+                        (group_id, member_id, now, now),
+                    )
+
+                cursor.execute(
+                    """
+                    UPDATE Posts
+                    SET restricted_group_id = %s,
+                        restricted_at = %s,
+                        replies_closed = TRUE,
+                        replies_closed_by = %s,
+                        replies_closed_at = %s,
+                        updated_at = %s
+                    WHERE post_id = %s;
+                    """,
+                    (group_id, now, creator_id, now, now, post_id),
+                )
+
+                cursor.close()
+
+            return {
+                "group_id": group_id,
+                "name": effective_name[:255],
+                "participant_count": len(unique_member_ids),
+                "participants": [
+                    {"id": uid, "name": eligible_map.get(uid, "Post owner")}
+                    for uid in unique_member_ids
+                ],
+            }, 201
+        except Exception as e:
+            logger.error(f"Error creating discussion group: {e}")
+            return {"error": "Failed to split discussion"}, 500
     
     return app
