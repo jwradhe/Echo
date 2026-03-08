@@ -58,6 +58,29 @@ def test_api_posts_requires_login(client):
     assert resp.status_code == 401
 
 
+def test_post_like_requires_login(client, app):
+    """Post like API should require authentication."""
+    post_id = str(uuid4())
+    now = datetime.now().isoformat(timespec="seconds")
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute("SELECT user_id FROM Users WHERE is_deleted = FALSE LIMIT 1")
+        user_row = cursor.fetchone()
+        assert user_row is not None
+        cursor.execute(
+            """
+            INSERT INTO Posts (post_id, user_id, content, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (post_id, user_row["user_id"], "Like auth post", now, now),
+        )
+        conn.commit()
+        cursor.close()
+
+    resp = client.post(f"/api/posts/{post_id}/like")
+    assert resp.status_code == 401
+
+
 def test_api_comments_requires_login(client, app):
     """Comment API should return 401 when unauthenticated."""
     post_id = str(uuid4())
@@ -148,6 +171,59 @@ def test_create_comment_authenticated(app, client):
     assert row is not None
     assert row["parent_post_id"] == post_id
     assert row["content"] == comment_content
+
+
+def test_toggle_post_like_authenticated(client):
+    """Authenticated user can like/unlike a post."""
+    suffix = datetime.now().isoformat(timespec="seconds").replace(":", "")
+    result = _register_user(client, suffix)
+    assert result["response"].status_code == 302
+
+    create_resp = client.post("/api/posts", json={"content": "Likeable post"})
+    assert create_resp.status_code == 201
+    post_id = create_resp.get_json()["post_id"]
+
+    like_resp = client.post(f"/api/posts/{post_id}/like")
+    assert like_resp.status_code == 200
+    like_payload = like_resp.get_json()
+    assert like_payload["isLiked"] is True
+    assert like_payload["likes"] == 1
+
+    unlike_resp = client.post(f"/api/posts/{post_id}/like")
+    assert unlike_resp.status_code == 200
+    unlike_payload = unlike_resp.get_json()
+    assert unlike_payload["isLiked"] is False
+    assert unlike_payload["likes"] == 0
+
+
+def test_toggle_reply_like_authenticated(client):
+    """Authenticated user can like/unlike a reply."""
+    suffix = datetime.now().isoformat(timespec="seconds").replace(":", "")
+    result = _register_user(client, suffix)
+    assert result["response"].status_code == 302
+
+    create_post_resp = client.post("/api/posts", json={"content": "Post with reply like"})
+    assert create_post_resp.status_code == 201
+    post_id = create_post_resp.get_json()["post_id"]
+
+    create_comment_resp = client.post(
+        f"/api/posts/{post_id}/comments",
+        json={"content": "A reply to like"},
+    )
+    assert create_comment_resp.status_code == 201
+    reply_id = create_comment_resp.get_json()["reply_id"]
+
+    like_resp = client.post(f"/api/replies/{reply_id}/like")
+    assert like_resp.status_code == 200
+    like_payload = like_resp.get_json()
+    assert like_payload["isLiked"] is True
+    assert like_payload["likes"] == 1
+
+    unlike_resp = client.post(f"/api/replies/{reply_id}/like")
+    assert unlike_resp.status_code == 200
+    unlike_payload = unlike_resp.get_json()
+    assert unlike_payload["isLiked"] is False
+    assert unlike_payload["likes"] == 0
 
 
 def test_closed_thread_blocks_new_comments(app, client):
