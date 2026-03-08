@@ -2,6 +2,11 @@
 const postBtn = document.getElementById('postBtn');
 const postContent = document.getElementById('postContent');
 const charCount = document.getElementById('charCount');
+const postImageUrl = document.getElementById('postImageUrl');
+const composerImageUrlWrap = document.getElementById('composerImageUrlWrap');
+const toggleImageUrlBtn = document.getElementById('toggleImageUrlBtn');
+const emojiPicker = document.getElementById('emojiPicker');
+const toggleEmojiPickerBtn = document.getElementById('toggleEmojiPickerBtn');
 
 function formatTimestamp(raw) {
     const date = new Date(raw);
@@ -40,6 +45,15 @@ function createCommentElement(comment) {
     content.className = 'comment-content';
     content.textContent = comment.content;
 
+    const imageUrl = comment.image_url || comment.imageUrl;
+    let imageEl = null;
+    if (imageUrl) {
+        imageEl = document.createElement('img');
+        imageEl.className = 'comment-image';
+        imageEl.src = imageUrl;
+        imageEl.alt = 'Comment image';
+    }
+
     const replyActions = document.createElement('div');
     replyActions.className = 'reply-actions';
 
@@ -54,7 +68,11 @@ function createCommentElement(comment) {
 
     replyActions.append(likeBtn);
     meta.append(author, separator, time);
-    body.append(meta, content, replyActions);
+    if (imageEl) {
+        body.append(meta, content, imageEl, replyActions);
+    } else {
+        body.append(meta, content, replyActions);
+    }
     item.append(avatar, body);
     return item;
 }
@@ -131,12 +149,15 @@ function renderSplitParticipants(container, participants) {
 
 // Rensa composer när modalen öppnas
 const composerModal = document.getElementById('composerModal');
-if (composerModal) {
+    if (composerModal) {
     composerModal.addEventListener('show.bs.modal', () => {
         const textarea = document.getElementById('postContent');
         const charCount = document.getElementById('charCount');
         if (textarea) textarea.value = '';
         if (charCount) charCount.textContent = '0/500';
+        if (postImageUrl) postImageUrl.value = '';
+        if (composerImageUrlWrap) composerImageUrlWrap.classList.add('d-none');
+        if (emojiPicker) emojiPicker.classList.add('d-none');
     });
 
     // Teckenräknare
@@ -159,22 +180,51 @@ if (postBtn && postContent && charCount) {
     postBtn.addEventListener('click', async () => {
         const content = postContent.value.trim();
         if (!content) return;
+        const imageUrl = (postImageUrl?.value || '').trim();
 
         try {
             const response = await fetch('/api/posts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content }),
+                body: JSON.stringify({ content, image_url: imageUrl }),
             });
 
             if (response.ok) {
                 location.reload();
+            } else {
+                showAlert('Kunde inte skapa inlägget.', 'alert-danger');
             }
         } catch (error) {
             console.error('Error creating post:', error);
         }
     });
 }
+
+if (toggleImageUrlBtn && composerImageUrlWrap) {
+    toggleImageUrlBtn.addEventListener('click', () => {
+        composerImageUrlWrap.classList.toggle('d-none');
+        if (!composerImageUrlWrap.classList.contains('d-none')) {
+            postImageUrl?.focus();
+        }
+    });
+}
+
+if (toggleEmojiPickerBtn && emojiPicker) {
+    toggleEmojiPickerBtn.addEventListener('click', () => {
+        emojiPicker.classList.toggle('d-none');
+    });
+}
+
+document.addEventListener('click', (e) => {
+    const emojiBtn = e.target.closest('.emoji-choice');
+    if (!emojiBtn || !postContent) return;
+    const emoji = emojiBtn.textContent || '';
+    postContent.value += emoji;
+    const length = postContent.value.length;
+    if (charCount) charCount.textContent = `${length}/500`;
+    if (postBtn) postBtn.disabled = length === 0 || length > 500;
+    postContent.focus();
+});
 
 // Like/Bookmark actions
 document.addEventListener('click', async (e) => {
@@ -304,16 +354,57 @@ document.addEventListener('click', async (e) => {
         return;
     }
 
+    const commentImageToggleBtn = e.target.closest('.comment-image-toggle-btn');
+    if (commentImageToggleBtn) {
+        const postCard = commentImageToggleBtn.closest('.post-card');
+        const imageWrap = postCard?.querySelector('.comment-image-url-wrap');
+        const imageInput = postCard?.querySelector('.comment-image-url-input');
+        if (!imageWrap) return;
+        imageWrap.classList.toggle('d-none');
+        if (!imageWrap.classList.contains('d-none')) {
+            imageInput?.focus();
+        }
+        return;
+    }
+
+    const commentEmojiToggleBtn = e.target.closest('.comment-emoji-toggle-btn');
+    if (commentEmojiToggleBtn) {
+        const postCard = commentEmojiToggleBtn.closest('.post-card');
+        const picker = postCard?.querySelector('.comment-emoji-picker');
+        if (!picker) return;
+        picker.classList.toggle('d-none');
+        return;
+    }
+
+    const commentEmojiChoiceBtn = e.target.closest('.comment-emoji-choice');
+    if (commentEmojiChoiceBtn) {
+        const postCard = commentEmojiChoiceBtn.closest('.post-card');
+        const input = postCard?.querySelector('.comment-input');
+        const submitBtn = postCard?.querySelector('.comment-submit-btn');
+        const countEl = postCard?.querySelector('.comment-charcount');
+        if (!input) return;
+        input.value += (commentEmojiChoiceBtn.textContent || '');
+        const length = input.value.length;
+        if (countEl) countEl.textContent = `${length}/500`;
+        if (submitBtn) {
+            submitBtn.disabled = length === 0 || length > 500 || postCard?.dataset.canComment !== 'true';
+        }
+        input.focus();
+        return;
+    }
+
     const submitBtn = e.target.closest('.comment-submit-btn');
     if (!submitBtn) return;
 
     const postCard = submitBtn.closest('.post-card');
     const input = postCard?.querySelector('.comment-input');
+    const imageInput = postCard?.querySelector('.comment-image-url-input');
     const commentsList = postCard?.querySelector('.comments-list');
     const postId = postCard?.dataset.postId;
     if (!postCard || !input || !commentsList || !postId) return;
 
     const content = input.value.trim();
+    const imageUrl = (imageInput?.value || '').trim();
     if (!content) return;
     const canComment = postCard.dataset.canComment === 'true';
     if (!canComment) {
@@ -329,7 +420,7 @@ document.addEventListener('click', async (e) => {
         const response = await fetch(`/api/posts/${postId}/comments`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify({ content, image_url: imageUrl }),
         });
 
         if (!response.ok) {
@@ -339,6 +430,11 @@ document.addEventListener('click', async (e) => {
         const comment = await response.json();
         commentsList.append(createCommentElement(comment));
         input.value = '';
+        if (imageInput) imageInput.value = '';
+        const imageWrap = postCard.querySelector('.comment-image-url-wrap');
+        if (imageWrap) imageWrap.classList.add('d-none');
+        const emojiPickerEl = postCard.querySelector('.comment-emoji-picker');
+        if (emojiPickerEl) emojiPickerEl.classList.add('d-none');
 
         const charCountEl = postCard.querySelector('.comment-charcount');
         if (charCountEl) charCountEl.textContent = '0/500';
