@@ -222,6 +222,17 @@ body {
 .post-author {
   font-weight: 600;
   color: var(--text-primary);
+  text-decoration: none;
+}
+
+.post-author:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.post-author-link-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .post-time {
@@ -609,4 +620,44 @@ body {
   background-color: rgba(39, 39, 42, 0.8);
   border-color: var(--blue-500);
   box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+}
+
+.follow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.follow-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  background-color: rgba(39, 39, 42, 0.35);
+}
+
+.follow-list-item:hover {
+  background-color: rgba(63, 63, 70, 0.35);
+  color: var(--text-primary);
+}
+
+.follow-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.follow-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.follow-handle {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
 }
