@@ -158,6 +158,16 @@ def create_app(test_config: dict | None = None) -> Flask:
                            p.restricted_group_id,
                            p.restricted_at,
                            CASE
+                               WHEN %s IS NULL THEN FALSE
+                               WHEN EXISTS (
+                                   SELECT 1
+                                   FROM Followers f
+                                   WHERE f.follower_id = %s
+                                     AND f.followed_id = p.user_id
+                               ) THEN TRUE
+                               ELSE FALSE
+                           END AS is_followed_author,
+                           CASE
                                WHEN p.restricted_group_id IS NULL THEN TRUE
                                WHEN %s IS NULL THEN FALSE
                                WHEN p.user_id = %s THEN TRUE
@@ -232,10 +242,12 @@ def create_app(test_config: dict | None = None) -> Flask:
                         GROUP BY r.post_id
                     ) plc ON plc.post_id = p.post_id
                     WHERE p.is_deleted = FALSE
-                    ORDER BY p.created_at DESC
+                    ORDER BY is_followed_author DESC, p.created_at DESC
                     LIMIT 50;
                     """,
                     (
+                        viewer_id,
+                        viewer_id,
                         viewer_id,
                         viewer_id,
                         viewer_id,

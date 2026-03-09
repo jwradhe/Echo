@@ -74,10 +74,12 @@
                          data-can-comment="{{ 'true' if post.canComment else 'false' }}"
                          data-comment-participants="{{ post.commentParticipants | tojson | forceescape }}">
                         <div class="d-flex gap-3">
-                            <img src="{{ post.author.avatar }}" alt="{{ post.author.name }}" class="post-avatar">
+                            <a href="{{ url_for('profile.user_profile', username=post.author.username) }}" class="post-author-link-avatar">
+                                <img src="{{ post.author.avatar }}" alt="{{ post.author.name }}" class="post-avatar">
+                            </a>
                             <div class="flex-grow-1">
                                 <div class="post-header">
-                                    <span class="post-author">{{ post.author.name }}</span>
+                                    <a class="post-author" href="{{ url_for('profile.user_profile', username=post.author.username) }}">{{ post.author.name }}</a>
                                     <span class="text-secondary">·</span>
                                     <span class="post-time">{{ post.timestamp }}</span>
                                     <div class="dropdown ms-auto">

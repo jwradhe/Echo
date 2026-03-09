@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 from uuid import uuid4
 import pymysql
@@ -689,3 +689,134 @@ def test_update_profile_picture_invalid_format_rejected(app, client):
 
     assert row is not None
     assert row["profile_media_id"] is None
+
+
+def test_follow_and_unfollow_profile_api_authenticated(app, client):
+    """Authenticated user can follow and unfollow another user via profile API."""
+    follower_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_follower"
+    follower = _register_user(client, follower_suffix)
+    assert follower["response"].status_code == 302
+
+    _logout_user(client)
+    target_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_target"
+    target = _register_user(client, target_suffix)
+    assert target["response"].status_code == 302
+
+    _logout_user(client)
+    _login_user(client, follower["username"], follower["password"])
+
+    follow_resp = client.post(f"/api/profile/{target['username']}/follow")
+    assert follow_resp.status_code == 200
+    follow_payload = follow_resp.get_json()
+    assert follow_payload["success"] is True
+    assert follow_payload["is_following"] is True
+
+    status_resp = client.get(f"/api/profile/{target['username']}/follow")
+    assert status_resp.status_code == 200
+    assert status_resp.get_json()["is_following"] is True
+
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute(
+            """
+            SELECT 1
+            FROM Followers f
+            JOIN Users a ON a.user_id = f.follower_id
+            JOIN Users b ON b.user_id = f.followed_id
+            WHERE a.username = %s AND b.username = %s
+            LIMIT 1
+            """,
+            (follower["username"], target["username"]),
+        )
+        followed_row = cursor.fetchone()
+        cursor.close()
+    assert followed_row is not None
+
+    unfollow_resp = client.delete(f"/api/profile/{target['username']}/follow")
+    assert unfollow_resp.status_code == 200
+    unfollow_payload = unfollow_resp.get_json()
+    assert unfollow_payload["success"] is True
+    assert unfollow_payload["is_following"] is False
+
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute(
+            """
+            SELECT 1
+            FROM Followers f
+            JOIN Users a ON a.user_id = f.follower_id
+            JOIN Users b ON b.user_id = f.followed_id
+            WHERE a.username = %s AND b.username = %s
+            LIMIT 1
+            """,
+            (follower["username"], target["username"]),
+        )
+        unfollowed_row = cursor.fetchone()
+        cursor.close()
+    assert unfollowed_row is None
+
+
+def test_followed_posts_are_prioritized_in_feed(app, client):
+    """Posts from followed users should appear before non-followed posts in dashboard feed."""
+    viewer_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_viewer"
+    viewer = _register_user(client, viewer_suffix)
+    assert viewer["response"].status_code == 302
+
+    _logout_user(client)
+    followed_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_followed"
+    followed_user = _register_user(client, followed_suffix)
+    assert followed_user["response"].status_code == 302
+
+    _logout_user(client)
+    other_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_other"
+    other_user = _register_user(client, other_suffix)
+    assert other_user["response"].status_code == 302
+
+    with get_db(app) as conn:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute(
+            "SELECT username, user_id FROM Users WHERE username IN (%s, %s)",
+            (followed_user["username"], other_user["username"]),
+        )
+        user_rows = cursor.fetchall()
+        user_ids = {row["username"]: row["user_id"] for row in user_rows}
+
+        followed_id = user_ids[followed_user["username"]]
+        other_id = user_ids[other_user["username"]]
+
+        followed_content = f"priority-followed-{datetime.now().timestamp()}"
+        other_content = f"priority-other-{datetime.now().timestamp()}"
+        now = datetime.now().replace(microsecond=0)
+        followed_time = (now - timedelta(minutes=2)).isoformat(timespec="seconds")
+        other_time = now.isoformat(timespec="seconds")
+
+        cursor.execute(
+            """
+            INSERT INTO Posts (post_id, user_id, content, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (str(uuid4()), followed_id, followed_content, followed_time, followed_time),
+        )
+        cursor.execute(
+            """
+            INSERT INTO Posts (post_id, user_id, content, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (str(uuid4()), other_id, other_content, other_time, other_time),
+        )
+        conn.commit()
+        cursor.close()
+
+    _logout_user(client)
+    _login_user(client, viewer["username"], viewer["password"])
+
+    follow_resp = client.post(f"/api/profile/{followed_user['username']}/follow")
+    assert follow_resp.status_code == 200
+
+    dashboard_resp = client.get("/dashboard")
+    assert dashboard_resp.status_code == 200
+    body = dashboard_resp.get_data(as_text=True)
+
+    assert followed_content in body
+    assert other_content in body
+    assert body.index(followed_content) < body.index(other_content)
