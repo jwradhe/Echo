@@ -820,3 +820,42 @@ def test_followed_posts_are_prioritized_in_feed(app, client):
     assert followed_content in body
     assert other_content in body
     assert body.index(followed_content) < body.index(other_content)
+
+
+def test_dashboard_search_matches_partial_and_exact_keywords(app, client):
+    """Dashboard search should match both partial and exact terms for users and posts."""
+    searcher_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_searcher"
+    searcher = _register_user(client, searcher_suffix)
+    assert searcher["response"].status_code == 302
+
+    _logout_user(client)
+    author_suffix = datetime.now().isoformat(timespec="seconds").replace(":", "") + "_author"
+    author = _register_user(client, author_suffix)
+    assert author["response"].status_code == 302
+
+    searchable_token = f"searchkey{int(datetime.now().timestamp())}"
+    post_content = f"Post content with {searchable_token} inside"
+    create_post_resp = client.post("/api/posts", json={"content": post_content})
+    assert create_post_resp.status_code == 201
+
+    with get_db(app) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE Users SET display_name = %s WHERE username = %s",
+            (f"Display {searchable_token}", author["username"]),
+        )
+        conn.commit()
+        cursor.close()
+
+    _logout_user(client)
+    _login_user(client, searcher["username"], searcher["password"])
+
+    partial_resp = client.get(f"/dashboard?q={searchable_token[:6]}")
+    assert partial_resp.status_code == 200
+    assert post_content.encode("utf-8") in partial_resp.data
+    assert f"@{author['username']}".encode("utf-8") in partial_resp.data
+
+    exact_resp = client.get(f"/dashboard?q={searchable_token}")
+    assert exact_resp.status_code == 200
+    assert post_content.encode("utf-8") in exact_resp.data
+    assert f"@{author['username']}".encode("utf-8") in exact_resp.data
