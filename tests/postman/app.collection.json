@@ -36,6 +36,10 @@
     {
       "key": "targetPassword",
       "value": ""
+    },
+    {
+      "key": "searchTerm",
+      "value": ""
     }
   ],
   "item": [
@@ -165,6 +169,54 @@
               "pm.test('Created content matches', function () {",
               "  const json = pm.response.json();",
               "  pm.expect(json.content).to.eql(pm.collectionVariables.get('echoText'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2b) GET /dashboard search by partial term",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/dashboard?q={{searchTerm}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "dashboard"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "{{searchTerm}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const echoText = pm.collectionVariables.get('echoText') || '';",
+              "pm.collectionVariables.set('searchTerm', echoText.substring(0, 8));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Search response contains original post text', function () {",
+              "  const echoText = pm.collectionVariables.get('echoText');",
+              "  pm.expect(pm.response.text()).to.include(echoText);",
               "});"
             ]
           }

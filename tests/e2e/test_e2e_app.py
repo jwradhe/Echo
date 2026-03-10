@@ -196,3 +196,15 @@ def test_follow_user_from_profile(page):
     page.get_by_role("button", name="Follow").click()
     page.get_by_role("button", name="Unfollow").wait_for(state="visible")
     page.locator(".followers-list").get_by_text(f"@{viewer_username}").wait_for(state="visible")
+
+
+def test_search_posts_with_partial_keyword(page):
+    base_url = os.environ.get("BASE_URL", "http://127.0.0.1:5001")
+    echo = _register_and_create_echo(page, base_url)
+    partial_term = echo.split()[-1][:4]
+
+    page.locator("#feedSearchInput").fill(partial_term)
+    page.locator(".search-form button[type='submit']").click()
+
+    page.get_by_text(f'Search results for "{partial_term}"').wait_for(state="visible")
+    page.locator(".search-post-item").get_by_text(echo).wait_for(state="visible")

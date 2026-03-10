@@ -142,6 +142,10 @@ def create_app(test_config: dict | None = None) -> Flask:
         try:
             default_avatar_url = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
             viewer_id = current_user.get_id() if current_user.is_authenticated else None
+            search_query = (request.args.get("q") or "").strip()
+            search_terms = [term for term in search_query.split() if term][:5]
+            search_users = []
+            search_posts = []
 
             with get_db(app) as conn:
                 cursor = conn.cursor(cursors.DictCursor)
@@ -354,6 +358,63 @@ def create_app(test_config: dict | None = None) -> Flask:
                                 },
                             }
                         )
+
+                if search_terms:
+                    user_conditions = []
+                    user_params = []
+                    for term in search_terms:
+                        like_term = f"%{term}%"
+                        user_conditions.append("(u.username LIKE %s OR COALESCE(u.display_name, '') LIKE %s)")
+                        user_params.extend([like_term, like_term])
+
+                    user_filter_sql = " AND ".join(user_conditions)
+                    exclude_viewer_sql = ""
+                    if viewer_id:
+                        exclude_viewer_sql = "AND u.user_id <> %s"
+                        user_params.append(viewer_id)
+
+                    cursor.execute(
+                        f"""
+                        SELECT u.user_id, u.username, u.display_name, m.url AS profile_image_url
+                        FROM Users u
+                        LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                        WHERE u.is_deleted = FALSE
+                          {exclude_viewer_sql}
+                          AND {user_filter_sql}
+                        ORDER BY u.created_at DESC
+                        LIMIT 15;
+                        """,
+                        tuple(user_params),
+                    )
+                    search_users = cursor.fetchall()
+
+                    post_conditions = []
+                    post_params = []
+                    for term in search_terms:
+                        like_term = f"%{term}%"
+                        post_conditions.append(
+                            "(p.content LIKE %s OR u.username LIKE %s OR COALESCE(u.display_name, '') LIKE %s)"
+                        )
+                        post_params.extend([like_term, like_term, like_term])
+
+                    post_filter_sql = " AND ".join(post_conditions)
+                    cursor.execute(
+                        f"""
+                        SELECT p.post_id, p.content, p.created_at,
+                               u.user_id, u.username, u.display_name,
+                               m.url AS profile_image_url
+                        FROM Posts p
+                        JOIN Users u ON u.user_id = p.user_id
+                        LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+                        WHERE p.is_deleted = FALSE
+                          AND u.is_deleted = FALSE
+                          AND {post_filter_sql}
+                        ORDER BY p.created_at DESC
+                        LIMIT 20;
+                        """,
+                        tuple(post_params),
+                    )
+                    search_posts = cursor.fetchall()
                 cursor.close()
 
             posts = []
@@ -444,7 +505,10 @@ def create_app(test_config: dict | None = None) -> Flask:
                 "index.html",
                 posts=posts,  # Keep variable name for template compatibility
                 default_avatar_url=default_avatar_url,
-                current_user=current_user
+                current_user=current_user,
+                search_query=search_query,
+                search_users=search_users,
+                search_posts=search_posts,
             )
         except Exception as e:
             logger.error(f"Dashboard error: {e}")

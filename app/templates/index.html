@@ -62,12 +62,70 @@
                         </button>
                         {% endif %}
                     </div>
+                    <form class="search-form mt-3" method="get" action="{{ url_for('dashboard') }}">
+                        <div class="input-group search-input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input
+                                class="form-control"
+                                type="search"
+                                name="q"
+                                id="feedSearchInput"
+                                placeholder="Search posts or users"
+                                value="{{ search_query or '' }}"
+                                maxlength="120">
+                            {% if search_query %}
+                            <a class="btn btn-outline-secondary" href="{{ url_for('dashboard') }}">Clear</a>
+                            {% endif %}
+                            <button class="btn btn-primary" type="submit">Search</button>
+                        </div>
+                    </form>
                 </div>
+
+                {% if search_query %}
+                <section class="search-results-wrap px-3 py-3 border-bottom">
+                    <h5 class="mb-3">Search results for "{{ search_query }}"</h5>
+                    <div class="row g-3">
+                        <div class="col-lg-6">
+                            <div class="info-card search-results-card mb-0">
+                                <h6 class="mb-3">Users ({{ search_users|length }})</h6>
+                                {% for user in search_users %}
+                                <a class="search-user-item" href="{{ url_for('profile.user_profile', username=user.username) }}">
+                                    <img src="{{ user.profile_image_url or default_avatar_url }}" alt="{{ user.username }} avatar" class="search-user-avatar">
+                                    <div>
+                                        <div class="search-user-name">{{ user.display_name or user.username }}</div>
+                                        <div class="search-user-handle">@{{ user.username }}</div>
+                                    </div>
+                                </a>
+                                {% else %}
+                                <p class="text-secondary small mb-0">No users matched your search.</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="info-card search-results-card mb-0">
+                                <h6 class="mb-3">Posts ({{ search_posts|length }})</h6>
+                                {% for result in search_posts %}
+                                <a class="search-post-item" href="#post-{{ result.post_id }}">
+                                    <div class="search-post-meta">
+                                        <span class="search-user-name">{{ result.display_name or result.username }}</span>
+                                        <span class="search-user-handle">@{{ result.username }}</span>
+                                    </div>
+                                    <p class="search-post-content">{{ result.content }}</p>
+                                </a>
+                                {% else %}
+                                <p class="text-secondary small mb-0">No posts matched your search.</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
 
                 <!-- Posts Feed -->
                 <div id="postsFeed">
                     {% for post in posts %}
                     <div class="post-card"
+                         id="post-{{ post.id }}"
                          data-post-id="{{ post.id }}"
                          data-thread-closed="{{ 'true' if post.threadClosed else 'false' }}"
                          data-thread-restricted="{{ 'true' if post.threadRestricted else 'false' }}"
