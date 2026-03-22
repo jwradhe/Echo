@@ -38,7 +38,7 @@
 
 ### 1.2 Dataflöden (dataflödesdiagram i text)
 
-```
+```text
 Webbläsare (Användare)
    │
    ├─ GET /          → index() → MySQL → Jinja2 → HTML-svar
@@ -214,7 +214,7 @@ Skala: 1 (Mycket låg) – 5 (Mycket hög)
 
 ### Riskmatris (visuell illustration)
 
-```
+```text
 Konsekvens
   5 │         HOT-05  HOT-06          HOT-10
     │
@@ -238,7 +238,7 @@ Konsekvens
 
 ---
 
-#### Å-01: Implementera HTTP-säkerhetshuvuden [HOT-04]
+#### Å-01: Implementera HTTP-säkerhetshuvuden (HOT-04)
 
 **Åtgärd:** Lägg till ett middleware i Flask som sätter säkerhetshuvuden på varje svar.
 
@@ -273,7 +273,7 @@ def set_security_headers(response):
 
 ---
 
-#### Å-02: Åtgärda XSS via innerHTML i JavaScript [HOT-02]
+#### Å-02: Åtgärda XSS via innerHTML i JavaScript (HOT-02)
 
 **Åtgärd:** Byt ut `innerHTML` med användardata i `renderSplitParticipants()` mot `textContent`-tilldelning.
 
@@ -304,7 +304,7 @@ participants.forEach((participant) => {
 
 ---
 
-#### Å-03: Förhindra informationsläckage i felmeddelanden [HOT-03]
+#### Å-03: Förhindra informationsläckage i felmeddelanden (HOT-03)
 
 **Åtgärd:** Ersätt råa undantagsmeddelanden i HTTP-svar och flash-meddelanden med generiska texter.
 
@@ -322,7 +322,7 @@ except Exception as e:
 
 ---
 
-#### Å-04: Stäng MySQL-porten och byt standardkredentialer [HOT-05, HOT-06]
+#### Å-04: Stäng MySQL-porten och byt standardkredentialer (HOT-05, HOT-06)
 
 **Åtgärd (docker-compose.yml):** Ta bort den exponerade MySQL-porten och byt lösenord.
 
@@ -344,7 +344,7 @@ Säkerställ att `.env` innehåller starka, slumpmässiga lösenord och att `.en
 
 ---
 
-#### Å-05: Implementera rate-limiting på känsliga endpoints [HOT-01, HOT-08]
+#### Å-05: Implementera rate-limiting på känsliga endpoints (HOT-01, HOT-08)
 
 **Åtgärd:** Installera `Flask-Limiter` och sätt gränser på inloggning, registrering och API-anrop.
 
@@ -389,7 +389,7 @@ def create_post_api():
 
 ---
 
-#### Å-06: Aktivera CSRF-skydd med Flask-WTF [HOT-07]
+#### Å-06: Aktivera CSRF-skydd med Flask-WTF (HOT-07)
 
 **Åtgärd:** Flask-WTF är redan installerat men CSRFProtect är inte initierat. Aktivera det och lägg till CSRF-tokens i alla formulär.
 
@@ -414,7 +414,7 @@ csrf.init_app(app)
 
 ---
 
-#### Å-07: Implementera Subresource Integrity (SRI) för CDN-resurser [HOT-10]
+#### Å-07: Implementera Subresource Integrity (SRI) för CDN-resurser (HOT-10)
 
 **Åtgärd:** Lägg till `integrity`-attribut på Bootstrap-resurserna.
 
@@ -432,7 +432,7 @@ csrf.init_app(app)
 
 ---
 
-#### Å-08: Reducera sessionslivslängden och lägg till inaktivitetstimeout [HOT-15]
+#### Å-08: Reducera sessionslivslängden och lägg till inaktivitetstimeout (HOT-15)
 
 **Åtgärd:** Minska session-livslängden och implementera timeut vid inaktivitet.
 
@@ -461,7 +461,7 @@ def enforce_session_timeout():
 
 ---
 
-#### Å-09: Begränsa externa bild-URL:er med domänvitlista eller proxying [HOT-11]
+#### Å-09: Begränsa externa bild-URL:er med domänvitlista eller proxying (HOT-11)
 
 **Åtgärd:** Antingen begränsa tillåtna domäner eller proxy:a externa bilder via servern.
 
@@ -496,7 +496,7 @@ def _is_valid_image_url(value: str) -> bool:
 
 ---
 
-#### Å-10: Implementera säkerhetsloggning [HOT-12]
+#### Å-10: Implementera säkerhetsloggning (HOT-12)
 
 **Åtgärd:** Logga säkerhetskritiska händelser strukturerat.
 
@@ -529,7 +529,7 @@ security_logger.info(
 
 ---
 
-#### Å-11: Kör Docker-container som icke-root-användare [HOT-13]
+#### Å-11: Kör Docker-container som icke-root-användare (HOT-13)
 
 ```dockerfile
 # Dockerfile
@@ -559,7 +559,7 @@ CMD ["python", "-m", "app"]
 
 ---
 
-#### Å-12: Förbättra lösenordspolicyn och e-postvalidering [HOT-14]
+#### Å-12: Förbättra lösenordspolicyn och e-postvalidering (HOT-14)
 
 ```python
 # app/auth_routes.py – i register()
@@ -587,7 +587,7 @@ def _validate_email(email: str) -> bool:
 
 ---
 
-#### Å-13: Minska användaruppräkning [HOT-09]
+#### Å-13: Minska användaruppräkning (HOT-09)
 
 **Åtgärd:** Returnera ett generiskt felmeddelande för alla registreringsfel om ett konto redan finns.
 
@@ -603,7 +603,7 @@ except IntegrityError:
 
 ---
 
-#### Å-14: Integrera SAST och dependency scanning i CI/CD [HOT-10, HOT-06]
+#### Å-14: Integrera SAST och dependency scanning i CI/CD (HOT-10, HOT-06)
 
 **Åtgärd:** Lägg till säkerhetsskanningsverktyg i GitHub Actions-pipelinen.
 
@@ -628,7 +628,7 @@ except IntegrityError:
 
 ---
 
-#### Å-15: Validera sessionen mot databasen vid varje request [HOT-15]
+#### Å-15: Validera sessionen mot databasen vid varje request (HOT-15)
 
 **Åtgärd:** Flask-Logins `user_loader` hämtar redan användaren från DB vid varje request (via `load_user_by_id`). Kontrollera att detta inkluderar `is_banned`-status, vilket redan görs via `is_active`-egenskapen. Lägg till kontostatusvalidering tydligare:
 
