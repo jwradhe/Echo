@@ -138,10 +138,19 @@ function renderSplitParticipants(container, participants) {
     participants.forEach((participant) => {
         const check = document.createElement('div');
         check.className = 'form-check';
-        check.innerHTML = `
-            <input class="form-check-input split-participant-checkbox" type="checkbox" value="${participant.id}" id="split_${participant.id}">
-            <label class="form-check-label" for="split_${participant.id}">${participant.name}</label>
-        `;
+
+        const input = document.createElement('input');
+        input.className = 'form-check-input split-participant-checkbox';
+        input.type = 'checkbox';
+        input.value = participant.id;
+        input.id = `split_${participant.id}`;
+
+        const label = document.createElement('label');
+        label.className = 'form-check-label';
+        label.setAttribute('for', `split_${participant.id}`);
+        label.textContent = participant.name;
+
+        check.append(input, label);
         container.append(check);
     });
 }

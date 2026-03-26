@@ -37,6 +37,16 @@ class Config:
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     LOG_FORMAT = os.environ.get("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
+    # Rate limiting configuration
+    RATELIMIT_ENABLED = os.environ.get("RATELIMIT_ENABLED", "True").lower() == "true"
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+    RATELIMIT_HEADERS_ENABLED = os.environ.get("RATELIMIT_HEADERS_ENABLED", "True").lower() == "true"
+    RATELIMIT_DEFAULT = os.environ.get("RATELIMIT_DEFAULT", "200 per day;50 per hour")
+    RATELIMIT_LOGIN = os.environ.get("RATELIMIT_LOGIN", "10 per minute;50 per hour")
+    RATELIMIT_REGISTER = os.environ.get("RATELIMIT_REGISTER", "5 per hour;10 per day")
+    RATELIMIT_API_POSTS = os.environ.get("RATELIMIT_API_POSTS", "30 per minute")
+    RATELIMIT_API_INTERACTIONS = os.environ.get("RATELIMIT_API_INTERACTIONS", "60 per minute")
+
     # Profile image upload configuration
     PROFILE_IMAGE_MAX_BYTES = int(os.environ.get("PROFILE_IMAGE_MAX_BYTES", str(5 * 1024 * 1024)))
     PROFILE_IMAGE_MAX_DIMENSION = int(os.environ.get("PROFILE_IMAGE_MAX_DIMENSION", "512"))
@@ -84,6 +94,7 @@ class TestingConfig(Config):
     
     SESSION_COOKIE_SECURE = False
     LOG_LEVEL = "DEBUG"
+    RATELIMIT_ENABLED = False
     PROPAGATE_EXCEPTIONS = True
     PRESERVE_CONTEXT_ON_EXCEPTION = True
 

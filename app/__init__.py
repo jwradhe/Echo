@@ -5,6 +5,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, login_required
 from pymysql import cursors
 from .db import (
@@ -16,6 +18,10 @@ from .db import (
 )
 
 logger = logging.getLogger(__name__)
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri="memory://",
+)
 
 def create_app(test_config: dict | None = None) -> Flask:
     """Create and configure Flask application."""
@@ -41,6 +47,8 @@ def create_app(test_config: dict | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
         logger.debug("Applied test configuration overrides")
+
+    limiter.init_app(app)
     
     log_level = getattr(logging, app.config.get("LOG_LEVEL", "INFO"))
     logging.basicConfig(
@@ -99,6 +107,36 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(profile_bp)
+
+    auth_rate_limits = {
+        "auth.login": app.config["RATELIMIT_LOGIN"],
+        "auth.register": app.config["RATELIMIT_REGISTER"],
+    }
+    for endpoint, limit_value in auth_rate_limits.items():
+        view_func = app.view_functions.get(endpoint)
+        if view_func is not None:
+            app.view_functions[endpoint] = limiter.limit(limit_value, methods=["POST"])(view_func)
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "font-src 'self' data: https://cdn.jsdelivr.net; "
+            "img-src 'self' data: https:; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'none'"
+        )
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if not app.debug:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
     def _is_valid_http_url(value: str) -> bool:
         if not value:
@@ -634,6 +672,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         return redirect(url_for("dashboard"))
 
     @app.route("/api/posts", methods=["POST"])
+    @limiter.limit(lambda: app.config["RATELIMIT_API_POSTS"])
     @login_required
     def create_post_api():
         from uuid import uuid4
@@ -684,6 +723,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return {"error": "Failed to create post"}, 500
 
     @app.route("/api/posts/<post_id>/like", methods=["POST"])
+    @limiter.limit(lambda: app.config["RATELIMIT_API_INTERACTIONS"])
     @login_required
     def toggle_post_like_api(post_id):
         from uuid import uuid4
@@ -761,6 +801,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return {"error": "Failed to toggle like"}, 500
 
     @app.route("/api/posts/<post_id>/comments", methods=["POST"])
+    @limiter.limit(lambda: app.config["RATELIMIT_API_INTERACTIONS"])
     @login_required
     def create_comment_api(post_id):
         from uuid import uuid4
@@ -868,6 +909,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return {"error": "Failed to create comment"}, 500
 
     @app.route("/api/replies/<reply_id>/like", methods=["POST"])
+    @limiter.limit(lambda: app.config["RATELIMIT_API_INTERACTIONS"])
     @login_required
     def toggle_reply_like_api(reply_id):
         from uuid import uuid4
@@ -968,6 +1010,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return {"error": "Failed to toggle reply like"}, 500
 
     @app.route("/api/posts/<post_id>/reply-lock", methods=["POST"])
+    @limiter.limit(lambda: app.config["RATELIMIT_API_INTERACTIONS"])
     @login_required
     def toggle_post_reply_lock(post_id):
         payload = request.get_json(silent=True) or {}
@@ -1019,6 +1062,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return {"error": "Failed to update thread state"}, 500
 
     @app.route("/api/posts/<post_id>/discussion-groups", methods=["POST"])
+    @limiter.limit(lambda: app.config["RATELIMIT_API_INTERACTIONS"])
     @login_required
     def create_discussion_group(post_id):
         from uuid import uuid4
