@@ -230,9 +230,9 @@ def ensure_default_admin(app: Flask) -> Optional[str]:
     from uuid import uuid4
     from .auth import hash_password
 
-    username = os.environ.get("DEV_ADMIN_USERNAME", "admin")
-    email = os.environ.get("DEV_ADMIN_EMAIL", "admin@example.com")
-    password = os.environ.get("DEV_ADMIN_PASSWORD", "ChangeMeNow123")
+    username = os.environ.get("DEV_ADMIN_USERNAME")
+    email = os.environ.get("DEV_ADMIN_EMAIL")
+    password = os.environ.get("DEV_ADMIN_PASSWORD")
     display_name = os.environ.get("DEV_ADMIN_DISPLAY_NAME", "Admin")
 
     if not username or not email or not password:
