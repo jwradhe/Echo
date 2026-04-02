@@ -1,0 +1,33 @@
+- name: SSH in och deploya
+  uses: appleboy/ssh-action@v1
+  with:
+    host: ${{ secrets.SSH_HOST }}
+    username: ${{ secrets.SSH_USER }}
+    key: ${{ secrets.SSH_PRIVATE_KEY }}
+    port: ${{ secrets.SSH_PORT }}
+    script: |
+      cd /home/deploy/echo-app
+
+      git pull origin main
+
+      # Bygg .env från secrets
+      cat > .env << EOF
+      FLASK_ENV=production
+      FLASK_DEBUG=0
+      FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}
+      MYSQL_HOST=db
+      MYSQL_PORT=3306
+      MYSQL_USER=${{ secrets.MYSQL_USER }}
+      MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+      MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+      MYSQL_POOL_SIZE=20
+      MYSQL_POOL_MAX_OVERFLOW=10
+      MYSQL_POOL_TIMEOUT=30
+      LOG_LEVEL=WARNING
+      SESSION_COOKIE_SECURE=True
+      SESSION_COOKIE_HTTPONLY=True
+      SESSION_COOKIE_SAMESITE=Strict
+      EOF
+
+      docker compose up -d --build
+      docker image prune -f
