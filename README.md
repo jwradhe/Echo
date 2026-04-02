@@ -91,6 +91,27 @@ npm run test:all
 
 ```
 
+## 📊 Grafana
+
+Grafana körs som en del av Docker Compose och är tillgänglig på `http://localhost:3000`.
+
+**Inloggning (default):**
+- Användare: `admin`
+- Lösenord: `admin` (byt vid första inloggning)
+
+**Konfigurera i `.env` (valfritt):**
+```env
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=ditt-lösenord
+```
+
+MySQL-datakällan och ett färdigt dashboard (Echo Overview) konfigureras automatiskt vid uppstart via provisioning-filer i `grafana/provisioning/`. Inget manuellt setup krävs.
+
+**Loggar:**
+```bash
+docker-compose logs -f grafana
+```
+
 ## 🐳 Docker
 
 **Docker-compose**

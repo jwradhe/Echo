@@ -1,0 +1,156 @@
+{
+  "title": "Echo Overview",
+  "uid": "echo-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Totalt antal användare",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM Users WHERE is_deleted = FALSE",
+        "format": "table", "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Totalt antal inlägg",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM Posts WHERE is_deleted = FALSE",
+        "format": "table", "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Totalt antal svar",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM Replies WHERE is_deleted = FALSE",
+        "format": "table", "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Totalt antal reaktioner",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM Reactions",
+        "format": "table", "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Totalt antal följarrelationer",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM Followers",
+        "format": "table", "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Aktiva banningar",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM Users WHERE is_banned = TRUE",
+        "format": "table", "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "red", "value": 1 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Registreringar per dag (senaste 30 dagar)",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT DATE(created_at) AS time, COUNT(*) AS value FROM Users WHERE created_at >= NOW() - INTERVAL 30 DAY GROUP BY DATE(created_at) ORDER BY time",
+        "format": "time_series", "refId": "A"
+      }]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Inlägg per dag (senaste 30 dagar)",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT DATE(created_at) AS time, COUNT(*) AS value FROM Posts WHERE created_at >= NOW() - INTERVAL 30 DAY AND is_deleted = FALSE GROUP BY DATE(created_at) ORDER BY time",
+        "format": "time_series", "refId": "A"
+      }]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Aktivitet per dag: inlägg, svar & reaktioner (senaste 30 dagar)",
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+      "datasource": "Echo MySQL",
+      "targets": [
+        {
+          "rawSql": "SELECT DATE(created_at) AS time, COUNT(*) AS value FROM Posts WHERE created_at >= NOW() - INTERVAL 30 DAY AND is_deleted = FALSE GROUP BY DATE(created_at) ORDER BY time",
+          "format": "time_series", "refId": "Posts", "legendFormat": "Inlägg"
+        },
+        {
+          "rawSql": "SELECT DATE(created_at) AS time, COUNT(*) AS value FROM Replies WHERE created_at >= NOW() - INTERVAL 30 DAY AND is_deleted = FALSE GROUP BY DATE(created_at) ORDER BY time",
+          "format": "time_series", "refId": "Replies", "legendFormat": "Svar"
+        },
+        {
+          "rawSql": "SELECT DATE(created_at) AS time, COUNT(*) AS value FROM Reactions WHERE created_at >= NOW() - INTERVAL 30 DAY GROUP BY DATE(created_at) ORDER BY time",
+          "format": "time_series", "refId": "Reactions", "legendFormat": "Reaktioner"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Senaste 10 registrerade användare",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT username, display_name, created_at FROM Users WHERE is_deleted = FALSE ORDER BY created_at DESC LIMIT 10",
+        "format": "table", "refId": "A"
+      }]
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Senaste modereringsåtgärder",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT action_type, reason, created_at FROM ModerationActions ORDER BY created_at DESC LIMIT 10",
+        "format": "table", "refId": "A"
+      }]
+    }
+  ]
+}

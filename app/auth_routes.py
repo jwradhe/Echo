@@ -5,6 +5,7 @@ from flask_login import current_user, login_user, logout_user
 from pymysql import IntegrityError
 from .auth import assign_role, create_user, load_user_by_email, load_user_by_username, verify_password
 from .profile import create_profile
+from . import login_failures
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -32,14 +33,17 @@ def login():
 
         user_row = load_user_by_username(username)
         if not user_row or not verify_password(user_row.get("password_hash", ""), password):
+            login_failures.labels(reason="invalid_credentials").inc()
             flash("Invalid username or password.", "danger")
             return redirect(url_for("dashboard"))
 
         if user_row.get("is_deleted"):
+            login_failures.labels(reason="deleted_account").inc()
             flash("This account is deactivated.", "danger")
             return redirect(url_for("dashboard"))
 
         if user_row.get("is_banned"):
+            login_failures.labels(reason="banned_account").inc()
             flash("This account is banned.", "danger")
             return redirect(url_for("dashboard"))
 

@@ -7,6 +7,14 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from prometheus_flask_exporter import PrometheusMetrics
+from prometheus_client import Counter, multiprocess, CollectorRegistry
+
+login_failures = Counter(
+    "echo_login_failures_total",
+    "Failed login attempts",
+    ["reason"],
+)
 from flask_login import LoginManager, current_user, login_required
 from pymysql import cursors
 from .db import (
@@ -49,6 +57,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         logger.debug("Applied test configuration overrides")
 
     limiter.init_app(app)
+
+    metrics = PrometheusMetrics(app, group_by="endpoint")
+    metrics.info("echo_app_info", "Echo application info", version="1.0")
     
     log_level = getattr(logging, app.config.get("LOG_LEVEL", "INFO"))
     logging.basicConfig(
