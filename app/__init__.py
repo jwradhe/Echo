@@ -8,13 +8,7 @@ from flask import Flask, render_template, redirect, url_for, request, flash, jso
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from prometheus_flask_exporter import PrometheusMetrics
-from prometheus_client import Counter, multiprocess, CollectorRegistry
-
-login_failures = Counter(
-    "echo_login_failures_total",
-    "Failed login attempts",
-    ["reason"],
-)
+from prometheus_client import Counter
 from flask_login import LoginManager, current_user, login_required
 from pymysql import cursors
 from .db import (
@@ -23,6 +17,12 @@ from .db import (
     ensure_default_user,
     ensure_default_admin,
     ensure_post_thread_controls_schema,
+)
+
+login_failures = Counter(
+    "echo_login_failures_total",
+    "Failed login attempts",
+    ["reason"],
 )
 
 logger = logging.getLogger(__name__)
@@ -112,6 +112,8 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     @login_manager.unauthorized_handler
     def handle_unauthorized():
+        from .structured_log import log_unauthorized
+        log_unauthorized(path=request.path, method=request.method)
         if request.path.startswith("/api/"):
             return {"error": "Authentication required"}, 401
         return redirect(url_for("auth.login", next=request.full_path))
@@ -127,6 +129,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         view_func = app.view_functions.get(endpoint)
         if view_func is not None:
             app.view_functions[endpoint] = limiter.limit(limit_value, methods=["POST"])(view_func)
+
+    @app.errorhandler(429)
+    def handle_rate_limit(e):
+        from .structured_log import log_rate_limit
+        log_rate_limit(endpoint=request.endpoint or request.path)
+        return {"error": "Too many requests"}, 429
 
     @app.after_request
     def set_security_headers(response):
