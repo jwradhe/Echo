@@ -24,19 +24,19 @@ services:
     image: mysql:8.0
     container_name: echo_db
     environment:
-      - MYSQL_ROOT_PASSWORD=changemeCHANGEME123
-      - MYSQL_DATABASE=EchoDB
-      - MYSQL_USER=echo
-      - MYSQL_PASSWORD=changeme
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-changemeCHANGEME123}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-EchoDB}
+      - MYSQL_USER=${MYSQL_USER:-echo}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-changeme}
     ports:
-      - "${MYSQL_HOST_PORT:-3306}:3306"
+      - "${MYSQL_HOST_BIND:-127.0.0.1}:${MYSQL_HOST_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     networks:
       - echo_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pchangemeCHANGEME123"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s
       timeout: 5s
       retries: 5

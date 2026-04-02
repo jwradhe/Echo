@@ -548,9 +548,9 @@ def create_app(test_config: dict | None = None) -> Flask:
                 search_users=search_users,
                 search_posts=search_posts,
             )
-        except Exception as e:
-            logger.error(f"Dashboard error: {e}")
-            return f"<h1>Error loading dashboard</h1><p>{str(e)}</p>", 500
+        except Exception:
+            logger.error("Dashboard error", exc_info=True)
+            return render_template("error.html", message="Ett fel uppstod. Försök igen."), 500
 
     @app.route("/dashboard")
     def dashboard():
@@ -584,9 +584,9 @@ def create_app(test_config: dict | None = None) -> Flask:
                 cursor.close()
 
             flash("Echo skapad!", "success")
-        except Exception as e:
-            logger.error(f"Error creating post: {e}")
-            flash(f"Fel vid skapande av echo: {str(e)}", "danger")
+        except Exception:
+            logger.error("Error creating post", exc_info=True)
+            flash("Kunde inte skapa inlägget. Försök igen.", "danger")
         
         return redirect(url_for("dashboard"))
 
@@ -634,11 +634,11 @@ def create_app(test_config: dict | None = None) -> Flask:
                 return jsonify({"success": True})
 
             flash("Echo uppdaterad!", "success")
-        except Exception as e:
-            logger.error(f"Error updating post: {e}")
+        except Exception:
+            logger.error("Error updating post", exc_info=True)
             if request.is_json:
-                return jsonify({"success": False, "error": str(e)}), 500
-            flash(f"Fel vid uppdatering av echo: {str(e)}", "danger")
+                return jsonify({"success": False, "error": "Kunde inte uppdatera inlägget."}), 500
+            flash("Kunde inte uppdatera inlägget. Försök igen.", "danger")
 
         return redirect(url_for("dashboard"))
 
@@ -665,9 +665,9 @@ def create_app(test_config: dict | None = None) -> Flask:
                 cursor.close()
 
             flash("Echo borttagen!", "success")
-        except Exception as e:
-            logger.error(f"Error deleting post: {e}")
-            flash(f"Fel vid borttagning av echo: {str(e)}", "danger")
+        except Exception:
+            logger.error("Error deleting post", exc_info=True)
+            flash("Kunde inte ta bort inlägget. Försök igen.", "danger")
 
         return redirect(url_for("dashboard"))
 
