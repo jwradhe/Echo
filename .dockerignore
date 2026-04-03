@@ -1,0 +1,43 @@
+# Miljöfiler med credentials
+.env
+.env.*
+!.env.example
+!.env.production.example
+!.env.testing.example
+
+# Virtuell miljö och beroenden
+venv/
+node_modules/
+
+# Tester
+tests/
+pytest.ini
+init_test_db.py
+test_section.txt
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.claude/
+.vscode/
+.idea/
+
+# Dokumentation
+*.md
+LICENSE
+
+# Övriga config-filer
+eslint.config.mjs
+package.json
+package-lock.json
+scripts/
+grafana/
+
+# Python-cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
