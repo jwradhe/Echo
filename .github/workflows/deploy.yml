@@ -39,5 +39,6 @@ jobs:
             SESSION_COOKIE_SECURE=True\n\
             SESSION_COOKIE_HTTPONLY=True\n\
             SESSION_COOKIE_SAMESITE=Strict\n" > .env
+            docker compose down
             docker compose up -d --build
             docker image prune -f
