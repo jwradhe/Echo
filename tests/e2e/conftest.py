@@ -3,6 +3,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from urllib.parse import urlparse
 import pytest
 
 
@@ -23,6 +24,8 @@ def e2e_server():
     """Ensure the Flask app is running for E2E tests."""
     base_url = os.environ.get("BASE_URL", "http://127.0.0.1:5001")
     health_url = f"{base_url}/dashboard"
+    parsed_base_url = urlparse(base_url)
+    port = parsed_base_url.port or 5001
 
     # If server is already running (e.g., via start-server-and-test), use it.
     if _wait_for_server(health_url, timeout=2):
@@ -36,9 +39,19 @@ def e2e_server():
     env.setdefault("MYSQL_USER", "root")
     env.setdefault("MYSQL_PASSWORD", "changemeCHANGEME123")
     env.setdefault("MYSQL_DATABASE", "EchoDB")
+    env.setdefault("PORT", str(port))
 
     process = subprocess.Popen(
-        [sys.executable, "-m", "app"],
+        [
+            sys.executable,
+            "-m",
+            "flask",
+            "--app",
+            "app:create_app",
+            "run",
+            "--port",
+            str(port),
+        ],
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

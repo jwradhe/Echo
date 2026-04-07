@@ -6,11 +6,12 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from prometheus_flask_exporter import PrometheusMetrics
 from prometheus_client import Counter
 from flask_login import LoginManager, current_user, login_required
 from pymysql import cursors
+from werkzeug.middleware.proxy_fix import ProxyFix
+from .structured_log import get_request_ip
 from .db import (
     get_db,
     init_connection_pool,
@@ -26,10 +27,7 @@ login_failures = Counter(
 )
 
 logger = logging.getLogger(__name__)
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri="memory://",
-)
+limiter = Limiter(key_func=get_request_ip)
 
 def create_app(test_config: dict | None = None) -> Flask:
     """Create and configure Flask application."""
@@ -55,6 +53,16 @@ def create_app(test_config: dict | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
         logger.debug("Applied test configuration overrides")
+
+    trusted_proxy_count = int(app.config.get("TRUSTED_PROXY_COUNT", 0) or 0)
+    if trusted_proxy_count > 0:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=trusted_proxy_count,
+            x_proto=trusted_proxy_count,
+            x_host=trusted_proxy_count,
+            x_port=trusted_proxy_count,
+        )
 
     limiter.init_app(app)
 

@@ -18,11 +18,13 @@ def main():
         from prometheus_client import start_http_server
         start_http_server(8080)
 
+    port = int(os.environ.get("PORT", "5000"))
+
     # Only use debug mode in development
     if env != "production":
-        print(f"Running in {env.upper()} mode (debug={debug})")
+        print(f"Running in {env.upper()} mode (debug={debug}, port={port})")
 
-    app.run(host="0.0.0.0", port=5000, debug=debug)
+    app.run(host="0.0.0.0", port=port, debug=debug)
 
 if __name__ == "__main__":
     main()
