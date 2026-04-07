@@ -36,9 +36,12 @@ jobs:
             MYSQL_POOL_MAX_OVERFLOW=10\n\
             MYSQL_POOL_TIMEOUT=30\n\
             LOG_LEVEL=WARNING\n\
+            GRAFANA_ADMIN_USER=${{ secrets.GRAFANA_ADMIN_USER }}\n\
+            GRAFANA_ADMIN_PASSWORD=${{ secrets.GRAFANA_ADMIN_PASSWORD }}\n\
             SESSION_COOKIE_SECURE=True\n\
             SESSION_COOKIE_HTTPONLY=True\n\
-            SESSION_COOKIE_SAMESITE=Strict\n" > .env
+            SESSION_COOKIE_SAMESITE=Strict\n\
+            TRUSTED_PROXY_COUNT=${{ secrets.TRUSTED_PROXY_COUNT }}\n" > .env
             docker compose down
             docker compose up -d --build
             docker image prune -f
