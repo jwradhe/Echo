@@ -26,6 +26,7 @@ jobs:
             printf "FLASK_ENV=production\n\
             FLASK_DEBUG=0\n\
             FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}\n\
+            PORT=${{ secrets.PORT }}\n\
             MYSQL_HOST=db\n\
             MYSQL_PORT=3306\n\
             MYSQL_USER=${{ secrets.MYSQL_USER }}\n\
