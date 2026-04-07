@@ -3,6 +3,7 @@ from io import BytesIO
 from uuid import uuid4
 import pymysql
 from PIL import Image
+from app import create_app, limiter
 from app.db import get_db
 
 
@@ -43,6 +44,44 @@ def test_dashboard_loads(client):
     """Test dashboard page loads successfully."""
     resp = client.get("/dashboard")
     assert resp.status_code == 200
+
+
+def test_rate_limiter_uses_forwarded_client_ip(monkeypatch):
+    """Different proxied clients should not share the same rate-limit bucket."""
+
+    class _NoopMetrics:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def info(self, *args, **kwargs):
+            return None
+
+    monkeypatch.setattr("app.PrometheusMetrics", _NoopMetrics)
+
+    original_enabled = limiter.enabled
+    try:
+        rate_limited_app = create_app({
+            "TESTING": True,
+            "RATELIMIT_ENABLED": True,
+            "RATELIMIT_DEFAULT": "1 per hour",
+        })
+        limited_client = rate_limited_app.test_client()
+
+        first = limited_client.get(
+            "/dashboard",
+            headers={"X-Forwarded-For": "198.51.100.10"},
+            environ_base={"REMOTE_ADDR": "10.0.0.5"},
+        )
+        second = limited_client.get(
+            "/dashboard",
+            headers={"X-Forwarded-For": "198.51.100.11"},
+            environ_base={"REMOTE_ADDR": "10.0.0.5"},
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+    finally:
+        limiter.enabled = original_enabled
 
 
 def test_create_echo_requires_login(client):

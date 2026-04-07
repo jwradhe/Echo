@@ -20,8 +20,25 @@ def _entry(event: str, **fields) -> str:
     })
 
 
+def get_request_ip() -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    real_ip = request.headers.get("X-Real-IP", "").strip()
+    if real_ip:
+        return real_ip
+
+    if request.access_route:
+        client_ip = (request.access_route[0] or "").strip()
+        if client_ip:
+            return client_ip
+
+    return request.remote_addr or "unknown"
+
+
 def _get_ip() -> str:
-    return request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+    return get_request_ip()
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────

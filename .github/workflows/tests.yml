@@ -39,6 +39,7 @@ jobs:
       SESSION_COOKIE_SECURE: False
       SESSION_COOKIE_HTTPONLY: True
       SESSION_COOKIE_SAMESITE: Lax
+      E2E_USE_EXISTING_SERVER: "1"
 
     steps:
 

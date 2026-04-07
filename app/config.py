@@ -41,11 +41,14 @@ class Config:
     RATELIMIT_ENABLED = os.environ.get("RATELIMIT_ENABLED", "True").lower() == "true"
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
     RATELIMIT_HEADERS_ENABLED = os.environ.get("RATELIMIT_HEADERS_ENABLED", "True").lower() == "true"
-    RATELIMIT_DEFAULT = os.environ.get("RATELIMIT_DEFAULT", "200 per day;50 per hour")
+    # Leave public browsing unrestricted by default; auth and write APIs
+    # are limited explicitly on the affected endpoints.
+    RATELIMIT_DEFAULT = os.environ.get("RATELIMIT_DEFAULT", "")
     RATELIMIT_LOGIN = os.environ.get("RATELIMIT_LOGIN", "10 per minute;50 per hour")
     RATELIMIT_REGISTER = os.environ.get("RATELIMIT_REGISTER", "5 per hour;10 per day")
     RATELIMIT_API_POSTS = os.environ.get("RATELIMIT_API_POSTS", "30 per minute")
     RATELIMIT_API_INTERACTIONS = os.environ.get("RATELIMIT_API_INTERACTIONS", "60 per minute")
+    TRUSTED_PROXY_COUNT = int(os.environ.get("TRUSTED_PROXY_COUNT", "0"))
 
     # Profile image upload configuration
     PROFILE_IMAGE_MAX_BYTES = int(os.environ.get("PROFILE_IMAGE_MAX_BYTES", str(5 * 1024 * 1024)))
