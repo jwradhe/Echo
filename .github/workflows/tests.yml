@@ -39,15 +39,16 @@ jobs:
       SESSION_COOKIE_SECURE: False
       SESSION_COOKIE_HTTPONLY: True
       SESSION_COOKIE_SAMESITE: Lax
+      E2E_USE_EXISTING_SERVER: "1"
 
     steps:
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Python setup
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -61,7 +62,7 @@ jobs:
 
       # Node setup (Newman + Playwright)
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
 

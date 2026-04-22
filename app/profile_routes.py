@@ -7,8 +7,13 @@ from PIL import Image, UnidentifiedImageError
 from .profile import (
     create_profile,
     delete_profile,
+    follow_user,
     get_profile_by_username,
+    is_following,
+    list_followers,
+    list_following,
     list_recent_posts_for_user,
+    unfollow_user,
     upsert_profile_image,
     update_profile,
 )
@@ -54,6 +59,7 @@ def my_profile():
 
 @profile_bp.route("/profile/<username>")
 def user_profile(username: str):
+    default_avatar_url = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"
     profile = get_profile_by_username(username)
     if not profile:
         flash("Profile not found.", "danger")
@@ -61,12 +67,23 @@ def user_profile(username: str):
 
     recent_posts = list_recent_posts_for_user(profile["user_id"], limit=20)
     is_owner = current_user.is_authenticated and current_user.get_id() == profile["user_id"]
+    viewer_is_following = (
+        current_user.is_authenticated
+        and not is_owner
+        and is_following(current_user.get_id(), profile["user_id"])
+    )
+    followers = list_followers(profile["user_id"], limit=20)
+    following = list_following(profile["user_id"], limit=20)
 
     return render_template(
         "profile.html",
         profile=profile,
         recent_posts=recent_posts,
         is_owner=is_owner,
+        viewer_is_following=viewer_is_following,
+        followers=followers,
+        following=following,
+        default_avatar_url=default_avatar_url,
     )
 
 
@@ -148,6 +165,33 @@ def delete_my_profile():
     return redirect(url_for("dashboard"))
 
 
+@profile_bp.route("/profile/<username>/follow", methods=["POST"])
+@login_required
+def toggle_follow_user(username: str):
+    profile = get_profile_by_username(username)
+    if not profile:
+        flash("Profile not found.", "danger")
+        return redirect(url_for("dashboard"))
+
+    follower_id = current_user.get_id()
+    followed_id = profile["user_id"]
+    if follower_id == followed_id:
+        flash("You cannot follow yourself.", "warning")
+        return redirect(url_for("profile.user_profile", username=username))
+
+    if is_following(follower_id, followed_id):
+        unfollow_user(follower_id, followed_id)
+        flash(f"You unfollowed @{profile['username']}.", "info")
+    else:
+        did_follow = follow_user(follower_id, followed_id)
+        if did_follow or is_following(follower_id, followed_id):
+            flash(f"You are now following @{profile['username']}.", "success")
+        else:
+            flash("Could not follow this user.", "danger")
+
+    return redirect(url_for("profile.user_profile", username=username))
+
+
 @profile_bp.route("/api/profile/<username>", methods=["GET"])
 def get_profile_api(username: str):
     profile = get_profile_by_username(username)
@@ -164,6 +208,45 @@ def get_profile_api(username: str):
         "posts_count": int(profile.get("posts_count") or 0),
         "followers_count": int(profile.get("followers_count") or 0),
         "following_count": int(profile.get("following_count") or 0),
+    }, 200
+
+
+@profile_bp.route("/api/profile/<username>/follow", methods=["GET", "POST", "DELETE"])
+@login_required
+def follow_profile_api(username: str):
+    profile = get_profile_by_username(username)
+    if not profile:
+        return {"error": "Profile not found"}, 404
+
+    follower_id = current_user.get_id()
+    followed_id = profile["user_id"]
+    if follower_id == followed_id:
+        return {"error": "You cannot follow yourself"}, 400
+
+    if request.method == "GET":
+        return {
+            "username": profile["username"],
+            "is_following": is_following(follower_id, followed_id),
+        }, 200
+
+    if request.method == "POST":
+        created = follow_user(follower_id, followed_id)
+        currently_following = created or is_following(follower_id, followed_id)
+        if not currently_following:
+            return {"error": "Failed to follow user"}, 500
+        return {
+            "success": True,
+            "username": profile["username"],
+            "is_following": True,
+            "created": bool(created),
+        }, 200
+
+    deleted = unfollow_user(follower_id, followed_id)
+    return {
+        "success": True,
+        "username": profile["username"],
+        "is_following": False,
+        "deleted": bool(deleted),
     }, 200
 
 

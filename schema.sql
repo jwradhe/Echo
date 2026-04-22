@@ -81,6 +81,11 @@ CREATE TABLE IF NOT EXISTS Posts (
     post_id CHAR(36) PRIMARY KEY,
     user_id CHAR(36) NOT NULL,
     content TEXT NOT NULL,
+    replies_closed BOOLEAN DEFAULT FALSE,
+    replies_closed_at DATETIME NULL,
+    replies_closed_by CHAR(36) NULL,
+    restricted_group_id CHAR(36) NULL,
+    restricted_at DATETIME NULL,
     is_deleted BOOLEAN DEFAULT FALSE,
     deleted_at DATETIME NULL,
     deleted_by CHAR(36) NULL,
@@ -91,6 +96,8 @@ CREATE TABLE IF NOT EXISTS Posts (
 CREATE INDEX idx_posts_user ON Posts(user_id);
 CREATE INDEX idx_posts_created_at ON Posts(created_at);
 CREATE INDEX idx_posts_deleted_by ON Posts(deleted_by);
+CREATE INDEX idx_posts_replies_closed_by ON Posts(replies_closed_by);
+CREATE INDEX idx_posts_restricted_group ON Posts(restricted_group_id);
 
 -- ----------------------------------------------------------
 
@@ -100,6 +107,7 @@ CREATE TABLE IF NOT EXISTS Replies (
     parent_reply_id CHAR(36) NULL,
     user_id CHAR(36) NOT NULL,
     content TEXT NOT NULL,
+    is_private_after_split BOOLEAN DEFAULT FALSE,
     is_deleted BOOLEAN DEFAULT FALSE,
     deleted_at DATETIME NULL,
     deleted_by CHAR(36) NULL,
@@ -288,6 +296,12 @@ ALTER TABLE BanHistory
 ALTER TABLE Posts
   ADD CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_posts_deleted_by FOREIGN KEY (deleted_by) REFERENCES Users(user_id) ON DELETE SET NULL;
+
+ALTER TABLE Posts
+  ADD CONSTRAINT fk_posts_replies_closed_by FOREIGN KEY (replies_closed_by) REFERENCES Users(user_id) ON DELETE SET NULL;
+
+ALTER TABLE Posts
+  ADD CONSTRAINT fk_posts_restricted_group FOREIGN KEY (restricted_group_id) REFERENCES UserGroups(group_id) ON DELETE SET NULL;
 
 ALTER TABLE Replies
   ADD CONSTRAINT fk_replies_user FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,

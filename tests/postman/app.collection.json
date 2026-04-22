@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Echo (Newman) - Auth flow",
+    "name": "Echo (Newman) - Core + Follow flow",
     "_postman_id": "11111111-1111-1111-1111-111111111111",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -24,11 +24,27 @@
     {
       "key": "echoText",
       "value": ""
+    },
+    {
+      "key": "targetUsername",
+      "value": ""
+    },
+    {
+      "key": "targetEmail",
+      "value": ""
+    },
+    {
+      "key": "targetPassword",
+      "value": ""
+    },
+    {
+      "key": "searchTerm",
+      "value": ""
     }
   ],
   "item": [
     {
-      "name": "1) POST /register (expect 302 redirect)",
+      "name": "1) POST /register (primary user)",
       "protocolProfileBehavior": {
         "followRedirects": false
       },
@@ -50,17 +66,17 @@
             },
             {
               "key": "username",
-              "value": "",
+              "value": "{{username}}",
               "type": "text"
             },
             {
               "key": "email",
-              "value": "",
+              "value": "{{email}}",
               "type": "text"
             },
             {
               "key": "password",
-              "value": "",
+              "value": "{{password}}",
               "type": "text"
             }
           ]
@@ -89,11 +105,7 @@
               "pm.collectionVariables.set('username', username);",
               "pm.collectionVariables.set('email', email);",
               "pm.collectionVariables.set('password', password);",
-              "pm.collectionVariables.set('echoText', echoText);",
-              "",
-              "pm.request.body.urlencoded.find(x => x.key === 'username').value = username;",
-              "pm.request.body.urlencoded.find(x => x.key === 'email').value = email;",
-              "pm.request.body.urlencoded.find(x => x.key === 'password').value = password;"
+              "pm.collectionVariables.set('echoText', echoText);"
             ]
           }
         },
@@ -103,10 +115,6 @@
             "exec": [
               "pm.test('Status is 302 (redirect)', function () {",
               "  pm.expect(pm.response.code).to.eql(302);",
-              "});",
-              "",
-              "pm.test('Has Location header', function () {",
-              "  pm.expect(pm.response.headers.has('Location')).to.be.true;",
               "});",
               "",
               "pm.test('Redirects to /dashboard (or includes it)', function () {",
@@ -119,35 +127,27 @@
       ]
     },
     {
-      "name": "2) POST /create_echo (expect 302 redirect)",
-      "protocolProfileBehavior": {
-        "followRedirects": false
-      },
+      "name": "2) POST /api/posts (create post as primary)",
       "request": {
         "method": "POST",
         "header": [
           {
             "key": "Content-Type",
-            "value": "application/x-www-form-urlencoded"
+            "value": "application/json"
           }
         ],
         "body": {
-          "mode": "urlencoded",
-          "urlencoded": [
-            {
-              "key": "echo",
-              "value": "{{echoText}}",
-              "type": "text"
-            }
-          ]
+          "mode": "raw",
+          "raw": "{\n  \"content\": \"{{echoText}}\"\n}"
         },
         "url": {
-          "raw": "{{baseUrl}}/create_echo",
+          "raw": "{{baseUrl}}/api/posts",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
-            "create_echo"
+            "api",
+            "posts"
           ]
         }
       },
@@ -156,46 +156,56 @@
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('Status is 302 (redirect)', function () {",
-              "  pm.expect(pm.response.code).to.eql(302);",
+              "pm.test('Status is 201', function () {",
+              "  pm.expect(pm.response.code).to.eql(201);",
               "});",
               "",
-              "pm.test('Has Location header', function () {",
-              "  pm.expect(pm.response.headers.has('Location')).to.be.true;",
+              "pm.test('Has created post id', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.post_id).to.be.a('string');",
+              "  pm.collectionVariables.set('postId', json.post_id);",
               "});",
               "",
-              "pm.test('Redirects to /dashboard (or includes it)', function () {",
-              "  const loc = pm.response.headers.get('Location') || '';",
-              "  pm.expect(loc).to.include('/dashboard');",
-              "});",
-              "",
-              "// Spara postId för edit/delete-stegen",
-              "const loc = pm.response.headers.get('Location') || '';",
-              "const match = loc.match(/\\/echo\\/(\\d+)/);",
-              "if (match) {",
-              "  pm.collectionVariables.set('postId', match[1]);",
-              "}"
+              "pm.test('Created content matches', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.content).to.eql(pm.collectionVariables.get('echoText'));",
+              "});"
             ]
           }
         }
       ]
     },
     {
-      "name": "3) GET /dashboard (verify echo exists in HTML)",
+      "name": "2b) GET /dashboard search by partial term",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/dashboard",
+          "raw": "{{baseUrl}}/dashboard?q={{searchTerm}}",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "dashboard"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "{{searchTerm}}"
+            }
           ]
         }
       },
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const echoText = pm.collectionVariables.get('echoText') || '';",
+              "pm.collectionVariables.set('searchTerm', echoText.substring(0, 8));"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
@@ -204,12 +214,7 @@
               "  pm.response.to.have.status(200);",
               "});",
               "",
-              "pm.test('Response is HTML', function () {",
-              "  const ct = pm.response.headers.get('Content-Type') || '';",
-              "  pm.expect(ct.toLowerCase()).to.include('text/html');",
-              "});",
-              "",
-              "pm.test('Dashboard contains the created echo text', function () {",
+              "pm.test('Search response contains original post text', function () {",
               "  const echoText = pm.collectionVariables.get('echoText');",
               "  pm.expect(pm.response.text()).to.include(echoText);",
               "});"
@@ -219,7 +224,43 @@
       ]
     },
     {
-      "name": "4) POST /edit_echo/:id (expect 302 redirect)",
+      "name": "3) POST /logout (primary user)",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/logout",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "logout"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 302 (redirect)', function () {",
+              "  pm.expect(pm.response.code).to.eql(302);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4) POST /register (target user)",
       "protocolProfileBehavior": {
         "followRedirects": false
       },
@@ -235,24 +276,49 @@
           "mode": "urlencoded",
           "urlencoded": [
             {
-              "key": "echo",
-              "value": "Updated {{echoText}}",
+              "key": "display_name",
+              "value": "Target Newman User",
+              "type": "text"
+            },
+            {
+              "key": "username",
+              "value": "{{targetUsername}}",
+              "type": "text"
+            },
+            {
+              "key": "email",
+              "value": "{{targetEmail}}",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "{{targetPassword}}",
               "type": "text"
             }
           ]
         },
         "url": {
-          "raw": "{{baseUrl}}/edit_echo/{{postId}}",
+          "raw": "{{baseUrl}}/register",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
-            "edit_echo",
-            "{{postId}}"
+            "register"
           ]
         }
       },
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const stamp = Date.now();",
+              "pm.collectionVariables.set('targetUsername', `newman_target_${stamp}`);",
+              "pm.collectionVariables.set('targetEmail', `newman_target_${stamp}@example.com`);",
+              "pm.collectionVariables.set('targetPassword', 'TestPassword123');"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
@@ -271,21 +337,25 @@
       ]
     },
     {
-      "name": "5) POST /delete_echo/:id (expect 302 redirect)",
+      "name": "5) POST /logout (target user)",
       "protocolProfileBehavior": {
         "followRedirects": false
       },
       "request": {
         "method": "POST",
-        "header": [],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
         "url": {
-          "raw": "{{baseUrl}}/delete_echo/{{postId}}",
+          "raw": "{{baseUrl}}/logout",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
-            "delete_echo",
-            "{{postId}}"
+            "logout"
           ]
         }
       },
@@ -297,30 +367,47 @@
               "pm.test('Status is 302 (redirect)', function () {",
               "  pm.expect(pm.response.code).to.eql(302);",
               "});",
-              "",
-              "pm.test('Redirects to /dashboard', function () {",
-              "  const loc = pm.response.headers.get('Location') || '';",
-              "  pm.expect(loc).to.include('/dashboard');",
-              "});"
+              ""
             ]
           }
         }
       ]
     },
     {
-      "name": "6) GET /api/profile/:username (expect 200)",
+      "name": "6) POST /login (primary user)",
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      },
       "request": {
-        "method": "GET",
-        "header": [],
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "username",
+              "value": "{{username}}",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "{{password}}",
+              "type": "text"
+            }
+          ]
+        },
         "url": {
-          "raw": "{{baseUrl}}/api/profile/{{username}}",
+          "raw": "{{baseUrl}}/login",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
-            "api",
-            "profile",
-            "{{username}}"
+            "login"
           ]
         }
       },
@@ -329,41 +416,35 @@
           "listen": "test",
           "script": {
             "exec": [
-              "pm.test('Status 200', function () {",
-              "  pm.response.to.have.status(200);",
+              "pm.test('Status is 302 (redirect)', function () {",
+              "  pm.expect(pm.response.code).to.eql(302);",
               "});",
-              "",
-              "pm.test('Contains username', function () {",
-              "  const json = pm.response.json();",
-              "  pm.expect(json.username).to.eql(pm.collectionVariables.get('username'));",
-              "});"
+              ""
             ]
           }
         }
       ]
     },
     {
-      "name": "7) PUT /api/profile (expect 200)",
+      "name": "7) POST /api/profile/:username/follow",
       "request": {
-        "method": "PUT",
+        "method": "POST",
         "header": [
           {
             "key": "Content-Type",
             "value": "application/json"
           }
         ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"display_name\": \"Updated Newman User\",\n  \"bio\": \"Updated by Newman API test\"\n}"
-        },
         "url": {
-          "raw": "{{baseUrl}}/api/profile",
+          "raw": "{{baseUrl}}/api/profile/{{targetUsername}}/follow",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "api",
-            "profile"
+            "profile",
+            "{{targetUsername}}",
+            "follow"
           ]
         }
       },
@@ -376,9 +457,86 @@
               "  pm.response.to.have.status(200);",
               "});",
               "",
-              "pm.test('Update success true', function () {",
+              "pm.test('Follow success true', function () {",
               "  const json = pm.response.json();",
               "  pm.expect(json.success).to.eql(true);",
+              "  pm.expect(json.is_following).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8) GET /api/profile/:username/follow",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/profile/{{targetUsername}}/follow",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "profile",
+            "{{targetUsername}}",
+            "follow"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Follow status is true', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.is_following).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9) GET /api/profile/:username (target has follower)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/profile/{{targetUsername}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "profile",
+            "{{targetUsername}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Target username matches', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.username).to.eql(pm.collectionVariables.get('targetUsername'));",
+              "});",
+              "",
+              "pm.test('Followers count incremented', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(Number(json.followers_count)).to.be.at.least(1);",
               "});"
             ]
           }

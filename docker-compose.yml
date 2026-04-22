@@ -6,6 +6,7 @@ services:
     container_name: echo_web
     ports:
       - "5001:5000"
+      - "8080:8080"
     env_file:
       - .env
     environment:
@@ -24,26 +25,82 @@ services:
     image: mysql:8.0
     container_name: echo_db
     environment:
-      - MYSQL_ROOT_PASSWORD=changemeCHANGEME123
-      - MYSQL_DATABASE=EchoDB
-      - MYSQL_USER=echo
-      - MYSQL_PASSWORD=changeme
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
     ports:
-      - "3306:3306"
+      - "${MYSQL_HOST_BIND:-127.0.0.1}:${MYSQL_HOST_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     networks:
       - echo_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pchangemeCHANGEME123"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: echo_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - echo_network
+    restart: unless-stopped
+
+  mysqld_exporter:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: echo_mysqld_exporter
+    environment:
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        printf '[client]\nuser=%s\npassword=%s\nhost=db\nport=3306\n' "$$MYSQL_USER" "$$MYSQL_PASSWORD" > /tmp/my.cnf
+        exec mysqld_exporter --config.my-cnf=/tmp/my.cnf
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - echo_network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: echo_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - echo_network
+    restart: unless-stopped
+
 volumes:
   mysql_data:
+  grafana_data:
+  prometheus_data:
 
 networks:
   echo_network:

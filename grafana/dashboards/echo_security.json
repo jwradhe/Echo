@@ -1,0 +1,217 @@
+{
+  "title": "Echo Security",
+  "uid": "echo-security",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Misslyckade inloggningar (1h)",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [{
+        "expr": "sum(increase(echo_login_failures_total[1h]))",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "yellow", "value": 10 },
+            { "color": "red", "value": 50 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Rate limit-träffar (1h)",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [{
+        "expr": "sum(increase(flask_http_request_total{status=\"429\"}[1h]))",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "yellow", "value": 5 },
+            { "color": "red", "value": 20 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "401/403-svar (1h)",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [{
+        "expr": "sum(increase(flask_http_request_total{status=~\"401|403\"}[1h]))",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "yellow", "value": 20 },
+            { "color": "red", "value": 100 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "MySQL nekade uppkopplingar (totalt)",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [{
+        "expr": "mysql_global_status_aborted_connects",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "yellow", "value": 10 },
+            { "color": "red", "value": 50 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Aktiva banningar",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM Users WHERE is_banned = TRUE",
+        "format": "table", "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "red", "value": 1 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Modereringsåtgärder (24h)",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM ModerationActions WHERE created_at >= NOW() - INTERVAL 24 HOUR",
+        "format": "table", "refId": "A"
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Misslyckade inloggningar per orsak",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(echo_login_failures_total{reason=\"invalid_credentials\"}[5m])",
+          "legendFormat": "Felaktiga credentials", "refId": "A"
+        },
+        {
+          "expr": "rate(echo_login_failures_total{reason=\"banned_account\"}[5m])",
+          "legendFormat": "Bannat konto", "refId": "B"
+        },
+        {
+          "expr": "rate(echo_login_failures_total{reason=\"deleted_account\"}[5m])",
+          "legendFormat": "Raderat konto", "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Rate limit-träffar och 401/403 per minut",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(flask_http_request_total{status=\"429\"}[1m]))",
+          "legendFormat": "429 Rate limited", "refId": "A"
+        },
+        {
+          "expr": "sum(rate(flask_http_request_total{status=\"401\"}[1m]))",
+          "legendFormat": "401 Unauthorized", "refId": "B"
+        },
+        {
+          "expr": "sum(rate(flask_http_request_total{status=\"403\"}[1m]))",
+          "legendFormat": "403 Forbidden", "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "MySQL - nekade uppkopplingar per minut",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [{
+        "expr": "rate(mysql_global_status_aborted_connects[1m])",
+        "legendFormat": "Aborted connects/s", "refId": "A"
+      }]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Hög request-rate mot /login (brute force-indikator)",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [{
+        "expr": "sum(rate(flask_http_request_total{endpoint=\"auth.login\", method=\"POST\"}[1m]))",
+        "legendFormat": "POST /login req/s", "refId": "A"
+      }]
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Senaste bannhistorik",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT u.username, bh.reason, bh.banned_at, bh.ban_expires_at, bh.unbanned_at FROM BanHistory bh JOIN Users u ON bh.user_id = u.user_id ORDER BY bh.banned_at DESC LIMIT 15",
+        "format": "table", "refId": "A"
+      }]
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Senaste modereringsåtgärder",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+      "datasource": "Echo MySQL",
+      "targets": [{
+        "rawSql": "SELECT action_type, reason, created_at FROM ModerationActions ORDER BY created_at DESC LIMIT 15",
+        "format": "table", "refId": "A"
+      }]
+    }
+  ]
+}

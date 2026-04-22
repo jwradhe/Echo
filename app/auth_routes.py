@@ -5,6 +5,12 @@ from flask_login import current_user, login_user, logout_user
 from pymysql import IntegrityError
 from .auth import assign_role, create_user, load_user_by_email, load_user_by_username, verify_password
 from .profile import create_profile
+from . import login_failures
+from .structured_log import (
+    log_login_success, log_login_failure,
+    log_register_success, log_register_failure,
+    log_logout,
+)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -32,14 +38,20 @@ def login():
 
         user_row = load_user_by_username(username)
         if not user_row or not verify_password(user_row.get("password_hash", ""), password):
+            login_failures.labels(reason="invalid_credentials").inc()
+            log_login_failure(username, reason="invalid_credentials")
             flash("Invalid username or password.", "danger")
             return redirect(url_for("dashboard"))
 
         if user_row.get("is_deleted"):
+            login_failures.labels(reason="deleted_account").inc()
+            log_login_failure(username, reason="deleted_account")
             flash("This account is deactivated.", "danger")
             return redirect(url_for("dashboard"))
 
         if user_row.get("is_banned"):
+            login_failures.labels(reason="banned_account").inc()
+            log_login_failure(username, reason="banned_account")
             flash("This account is banned.", "danger")
             return redirect(url_for("dashboard"))
 
@@ -56,6 +68,7 @@ def login():
         )
 
         login_user(user)
+        log_login_success(user.user_id, user.username)
         next_url = request.args.get("next")
         if next_url and _is_safe_url(next_url):
             return redirect(next_url)
@@ -78,18 +91,22 @@ def register():
         bio = (request.form.get("bio") or "").strip() or None
 
         if not username or not email or not password:
+            log_register_failure(username, reason="missing_fields")
             flash("Username, email, and password are required.", "danger")
             return redirect(url_for("dashboard"))
 
         if len(password) < 10:
+            log_register_failure(username, reason="password_too_short")
             flash("Password must be at least 10 characters.", "danger")
             return redirect(url_for("dashboard"))
 
         if load_user_by_username(username):
+            log_register_failure(username, reason="username_taken")
             flash("Username is already taken.", "danger")
             return redirect(url_for("dashboard"))
 
         if load_user_by_email(email):
+            log_register_failure(username, reason="email_taken")
             flash("Email is already registered.", "danger")
             return redirect(url_for("dashboard"))
 
@@ -98,10 +115,12 @@ def register():
             create_profile(user.user_id, display_name=display_name, bio=bio)
             assign_role(user.user_id, "user")
         except IntegrityError:
+            log_register_failure(username, reason="integrity_error")
             flash("Registration failed. Please try again.", "danger")
             return redirect(url_for("dashboard"))
 
         login_user(user)
+        log_register_success(user.user_id, user.username)
         return redirect(url_for("dashboard"))
 
     return redirect(url_for("dashboard"))
@@ -109,6 +128,8 @@ def register():
 
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
+    if current_user.is_authenticated:
+        log_logout(current_user.get_id())
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("dashboard"))

@@ -162,9 +162,10 @@ def init_db(app: Flask) -> None:
                 cursor.execute(statement)
             except pymysql.Error as e:
                 # Reduce noise for idempotent schema operations
+                # 1060: Duplicate column name
                 # 1061: Duplicate key name (indexes)
                 # 1826: Duplicate foreign key constraint name
-                if e.args and e.args[0] in (1061, 1826):
+                if e.args and e.args[0] in (1060, 1061, 1826):
                     logger.debug(f"Schema statement skipped (already exists): {e}")
                 else:
                     logger.warning(f"Schema statement error (may be benign): {e}")
@@ -229,9 +230,9 @@ def ensure_default_admin(app: Flask) -> Optional[str]:
     from uuid import uuid4
     from .auth import hash_password
 
-    username = os.environ.get("DEV_ADMIN_USERNAME", "admin")
-    email = os.environ.get("DEV_ADMIN_EMAIL", "admin@example.com")
-    password = os.environ.get("DEV_ADMIN_PASSWORD", "ChangeMeNow123")
+    username = os.environ.get("DEV_ADMIN_USERNAME")
+    email = os.environ.get("DEV_ADMIN_EMAIL")
+    password = os.environ.get("DEV_ADMIN_PASSWORD")
     display_name = os.environ.get("DEV_ADMIN_DISPLAY_NAME", "Admin")
 
     if not username or not email or not password:
@@ -299,3 +300,42 @@ def ensure_default_admin(app: Flask) -> Optional[str]:
     except pymysql.Error as e:
         logger.error(f"Failed to ensure default admin: {e}")
         return None
+
+
+def ensure_post_thread_controls_schema(app: Flask) -> None:
+    """Ensure thread control columns/constraints exist on Posts table."""
+    statements = [
+        "ALTER TABLE Posts ADD COLUMN replies_closed BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE Posts ADD COLUMN replies_closed_at DATETIME NULL",
+        "ALTER TABLE Posts ADD COLUMN replies_closed_by CHAR(36) NULL",
+        "ALTER TABLE Posts ADD COLUMN restricted_group_id CHAR(36) NULL",
+        "ALTER TABLE Posts ADD COLUMN restricted_at DATETIME NULL",
+        "ALTER TABLE Replies ADD COLUMN is_private_after_split BOOLEAN DEFAULT FALSE",
+        "CREATE INDEX idx_posts_replies_closed_by ON Posts(replies_closed_by)",
+        "CREATE INDEX idx_posts_restricted_group ON Posts(restricted_group_id)",
+        """
+        ALTER TABLE Posts
+        ADD CONSTRAINT fk_posts_replies_closed_by
+        FOREIGN KEY (replies_closed_by) REFERENCES Users(user_id) ON DELETE SET NULL
+        """,
+        """
+        ALTER TABLE Posts
+        ADD CONSTRAINT fk_posts_restricted_group
+        FOREIGN KEY (restricted_group_id) REFERENCES UserGroups(group_id) ON DELETE SET NULL
+        """,
+    ]
+    try:
+        with get_db(app) as conn:
+            cursor = conn.cursor()
+            for statement in statements:
+                try:
+                    cursor.execute(statement)
+                except pymysql.Error as e:
+                    if e.args and e.args[0] in (1060, 1061, 1826):
+                        logger.debug(f"Schema already up-to-date for thread controls: {e}")
+                    else:
+                        raise
+            cursor.close()
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Could not ensure thread control schema: {e}")

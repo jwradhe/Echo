@@ -1,0 +1,48 @@
+name: Deploy to production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout kod
+        uses: actions/checkout@v6
+
+      - name: SSH in och deploya
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd /home/deploy/echo-app
+            git pull origin main
+            printf "FLASK_ENV=production\n\
+            FLASK_DEBUG=0\n\
+            FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}\n\
+            PORT=${{ secrets.PORT }}\n\
+            MYSQL_HOST=db\n\
+            MYSQL_PORT=3306\n\
+            MYSQL_USER=${{ secrets.MYSQL_USER }}\n\
+            MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}\n\
+            MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}\n\
+            MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}\n\
+            MYSQL_POOL_SIZE=20\n\
+            MYSQL_POOL_MAX_OVERFLOW=10\n\
+            MYSQL_POOL_TIMEOUT=30\n\
+            LOG_LEVEL=WARNING\n\
+            GRAFANA_ADMIN_USER=${{ secrets.GRAFANA_ADMIN_USER }}\n\
+            GRAFANA_ADMIN_PASSWORD=${{ secrets.GRAFANA_ADMIN_PASSWORD }}\n\
+            SESSION_COOKIE_SECURE=True\n\
+            SESSION_COOKIE_HTTPONLY=True\n\
+            SESSION_COOKIE_SAMESITE=Strict\n\
+            TRUSTED_PROXY_COUNT=${{ secrets.TRUSTED_PROXY_COUNT }}\n" > .env
+            docker compose down
+            docker compose up -d --build
+            docker image prune -f

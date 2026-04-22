@@ -1,0 +1,12 @@
+apiVersion: 1
+
+datasources:
+  - name: Echo MySQL
+    type: mysql
+    url: db:3306
+    database: ${MYSQL_DATABASE}
+    user: ${MYSQL_USER}
+    secureJsonData:
+      password: ${MYSQL_PASSWORD}
+    isDefault: true
+    editable: false

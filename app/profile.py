@@ -142,6 +142,139 @@ def list_recent_posts_for_user(user_id: str, limit: int = 20) -> list[dict]:
     return rows
 
 
+def is_following(follower_id: str, followed_id: str) -> bool:
+    if not follower_id or not followed_id or follower_id == followed_id:
+        return False
+
+    with get_db(current_app) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT 1
+            FROM Followers f
+            JOIN Users follower_user
+              ON follower_user.user_id = f.follower_id
+             AND follower_user.is_deleted = FALSE
+            JOIN Users followed_user
+              ON followed_user.user_id = f.followed_id
+             AND followed_user.is_deleted = FALSE
+            WHERE f.follower_id = %s
+              AND f.followed_id = %s
+            LIMIT 1
+            """,
+            (follower_id, followed_id),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+
+    return row is not None
+
+
+def follow_user(follower_id: str, followed_id: str) -> bool:
+    if not follower_id or not followed_id or follower_id == followed_id:
+        return False
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    with get_db(current_app) as conn:
+        cursor = conn.cursor(cursors.DictCursor)
+        cursor.execute(
+            """
+            SELECT user_id
+            FROM Users
+            WHERE user_id IN (%s, %s)
+              AND is_deleted = FALSE
+            """,
+            (follower_id, followed_id),
+        )
+        users = cursor.fetchall()
+        if len(users) < 2:
+            cursor.close()
+            return False
+
+        cursor.execute(
+            """
+            INSERT IGNORE INTO Followers (follower_id, followed_id, created_at, updated_at)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (follower_id, followed_id, now, now),
+        )
+        inserted_rows = cursor.rowcount
+        cursor.close()
+
+    return inserted_rows > 0
+
+
+def unfollow_user(follower_id: str, followed_id: str) -> bool:
+    if not follower_id or not followed_id or follower_id == followed_id:
+        return False
+
+    with get_db(current_app) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            DELETE FROM Followers
+            WHERE follower_id = %s
+              AND followed_id = %s
+            """,
+            (follower_id, followed_id),
+        )
+        deleted_rows = cursor.rowcount
+        cursor.close()
+
+    return deleted_rows > 0
+
+
+def list_followers(user_id: str, limit: int = 20) -> list[dict]:
+    if not user_id:
+        return []
+
+    safe_limit = max(1, min(limit, 100))
+    with get_db(current_app) as conn:
+        cursor = conn.cursor(cursors.DictCursor)
+        cursor.execute(
+            """
+            SELECT u.user_id, u.username, u.display_name, m.url AS profile_image_url
+            FROM Followers f
+            JOIN Users u ON u.user_id = f.follower_id AND u.is_deleted = FALSE
+            LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+            WHERE f.followed_id = %s
+            ORDER BY f.created_at DESC
+            LIMIT %s
+            """,
+            (user_id, safe_limit),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+
+    return rows
+
+
+def list_following(user_id: str, limit: int = 20) -> list[dict]:
+    if not user_id:
+        return []
+
+    safe_limit = max(1, min(limit, 100))
+    with get_db(current_app) as conn:
+        cursor = conn.cursor(cursors.DictCursor)
+        cursor.execute(
+            """
+            SELECT u.user_id, u.username, u.display_name, m.url AS profile_image_url
+            FROM Followers f
+            JOIN Users u ON u.user_id = f.followed_id AND u.is_deleted = FALSE
+            LEFT JOIN Media m ON m.media_id = u.profile_media_id AND m.is_deleted = FALSE
+            WHERE f.follower_id = %s
+            ORDER BY f.created_at DESC
+            LIMIT %s
+            """,
+            (user_id, safe_limit),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+
+    return rows
+
+
 def update_profile(user_id: str, display_name: Optional[str], bio: Optional[str]) -> bool:
     if not user_id:
         return False

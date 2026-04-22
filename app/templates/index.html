@@ -62,17 +62,82 @@
                         </button>
                         {% endif %}
                     </div>
+                    <form class="search-form mt-3" method="get" action="{{ url_for('dashboard') }}">
+                        <div class="input-group search-input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input
+                                class="form-control"
+                                type="search"
+                                name="q"
+                                id="feedSearchInput"
+                                placeholder="Search posts or users"
+                                value="{{ search_query or '' }}"
+                                maxlength="120">
+                            {% if search_query %}
+                            <a class="btn btn-outline-secondary" href="{{ url_for('dashboard') }}">Clear</a>
+                            {% endif %}
+                            <button class="btn btn-primary" type="submit">Search</button>
+                        </div>
+                    </form>
                 </div>
+
+                {% if search_query %}
+                <section class="search-results-wrap px-3 py-3 border-bottom">
+                    <h5 class="mb-3">Search results for "{{ search_query }}"</h5>
+                    <div class="row g-3">
+                        <div class="col-lg-6">
+                            <div class="info-card search-results-card mb-0">
+                                <h6 class="mb-3">Users ({{ search_users|length }})</h6>
+                                {% for user in search_users %}
+                                <a class="search-user-item" href="{{ url_for('profile.user_profile', username=user.username) }}">
+                                    <img src="{{ user.profile_image_url or default_avatar_url }}" alt="{{ user.username }} avatar" class="search-user-avatar">
+                                    <div>
+                                        <div class="search-user-name">{{ user.display_name or user.username }}</div>
+                                        <div class="search-user-handle">@{{ user.username }}</div>
+                                    </div>
+                                </a>
+                                {% else %}
+                                <p class="text-secondary small mb-0">No users matched your search.</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="info-card search-results-card mb-0">
+                                <h6 class="mb-3">Posts ({{ search_posts|length }})</h6>
+                                {% for result in search_posts %}
+                                <a class="search-post-item" href="#post-{{ result.post_id }}">
+                                    <div class="search-post-meta">
+                                        <span class="search-user-name">{{ result.display_name or result.username }}</span>
+                                        <span class="search-user-handle">@{{ result.username }}</span>
+                                    </div>
+                                    <p class="search-post-content">{{ result.content }}</p>
+                                </a>
+                                {% else %}
+                                <p class="text-secondary small mb-0">No posts matched your search.</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
 
                 <!-- Posts Feed -->
                 <div id="postsFeed">
                     {% for post in posts %}
-                    <div class="post-card" data-post-id="{{ post.id }}">
+                    <div class="post-card"
+                         id="post-{{ post.id }}"
+                         data-post-id="{{ post.id }}"
+                         data-thread-closed="{{ 'true' if post.threadClosed else 'false' }}"
+                         data-thread-restricted="{{ 'true' if post.threadRestricted else 'false' }}"
+                         data-can-comment="{{ 'true' if post.canComment else 'false' }}"
+                         data-comment-participants="{{ post.commentParticipants | tojson | forceescape }}">
                         <div class="d-flex gap-3">
-                            <img src="{{ post.author.avatar }}" alt="{{ post.author.name }}" class="post-avatar">
+                            <a href="{{ url_for('profile.user_profile', username=post.author.username) }}" class="post-author-link-avatar">
+                                <img src="{{ post.author.avatar }}" alt="{{ post.author.name }}" class="post-avatar">
+                            </a>
                             <div class="flex-grow-1">
                                 <div class="post-header">
-                                    <span class="post-author">{{ post.author.name }}</span>
+                                    <a class="post-author" href="{{ url_for('profile.user_profile', username=post.author.username) }}">{{ post.author.name }}</a>
                                     <span class="text-secondary">·</span>
                                     <span class="post-time">{{ post.timestamp }}</span>
                                     <div class="dropdown ms-auto">
@@ -96,16 +161,42 @@
                                                     <i class="bi bi-trash me-2"></i>Delete
                                                 </button>
                                             </li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <button class="dropdown-item thread-lock-toggle-btn"
+                                                        type="button"
+                                                        data-is-closed="{{ 'true' if post.threadClosed else 'false' }}"
+                                                        {% if post.threadRestricted %}disabled{% endif %}>
+                                                    <i class="bi bi-chat-left-text me-2"></i>
+                                                    {% if post.threadRestricted %}
+                                                    Svarstråd privat efter utbrytning
+                                                    {% elif post.threadClosed %}
+                                                    Öppna svarstråd
+                                                    {% else %}
+                                                    Stäng svarstråd
+                                                    {% endif %}
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item discussion-split-open-btn"
+                                                        type="button">
+                                                    <i class="bi bi-diagram-3 me-2"></i>Bryt ut diskussion
+                                                </button>
+                                            </li>
                                             {% endif %}
                                         </ul>
                                     {% endif %}
                                     </div>
                                 </div>
                                 <p class="post-content">{{ post.content }}</p>
+                                {% if post.imageUrl %}
+                                <img src="{{ post.imageUrl }}" alt="Post image" class="post-image">
+                                {% endif %}
                                 <div class="post-actions">
-                                    <button class="btn btn-link text-secondary action-btn">
+                                    <button class="btn btn-link text-secondary action-btn comment-toggle-btn" type="button">
                                         <i class="bi bi-chat"></i>
-                                        <span>{{ post.comments }}</span>
+                                        <span class="comment-count">{{ post.comments }}</span>
+                                        <i class="bi bi-lock-fill text-warning ms-1 thread-locked-indicator {% if not post.threadClosed %}d-none{% endif %}"></i>
                                     </button>
                                     <button class="btn btn-link action-btn like-btn {% if post.isLiked %}liked{% endif %}" data-action="like">
                                         <i class="bi {% if post.isLiked %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
@@ -114,6 +205,80 @@
                                     <button class="btn btn-link action-btn bookmark-btn ms-auto {% if post.isBookmarked %}bookmarked{% endif %}" data-action="bookmark">
                                         <i class="bi {% if post.isBookmarked %}bi-bookmark-fill{% else %}bi-bookmark{% endif %}"></i>
                                     </button>
+                                </div>
+                                <div class="comments-section d-none">
+                                    {% if post.canViewComments %}
+                                        <div class="comments-list">
+                                            {% for comment in post.commentsList %}
+                                            {% if comment.isMarker %}
+                                            <div class="thread-marker">
+                                                <span class="thread-marker-label">{{ comment.label }}</span>
+                                                {% if comment.timestamp %}
+                                                <span class="thread-marker-time">{{ comment.timestamp }}</span>
+                                                {% endif %}
+                                            </div>
+                                            {% else %}
+                                            <div class="comment-item">
+                                                <img src="{{ comment.author.avatar }}" alt="{{ comment.author.name }}" class="comment-avatar">
+                                                <div class="comment-body">
+                                                    <div class="comment-meta">
+                                                        <span class="comment-author">{{ comment.author.name }}</span>
+                                                        <span class="text-secondary">·</span>
+                                                        <span class="comment-time">{{ comment.timestamp }}</span>
+                                                    </div>
+                                                    <p class="comment-content">{{ comment.content }}</p>
+                                                    {% if comment.imageUrl %}
+                                                    <img src="{{ comment.imageUrl }}" alt="Comment image" class="comment-image">
+                                                    {% endif %}
+                                                    <div class="reply-actions">
+                                                        <button class="btn btn-link reply-like-btn {% if comment.isLiked %}liked{% endif %}" type="button" data-reply-id="{{ comment.id }}">
+                                                            <i class="bi {% if comment.isLiked %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
+                                                            <span class="reply-like-count">{{ comment.likes or 0 }}</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                        {% if current_user.is_authenticated %}
+                                        <p class="text-warning small mb-2 thread-closed-note {% if not post.threadClosed or post.threadRestricted %}d-none{% endif %}">
+                                            Svarstråden är stängd för nya kommentarer.
+                                        </p>
+                                        {% if post.threadRestricted %}
+                                        <hr class="my-2">
+                                        <p class="text-info small mb-2">Privat diskussion. Endast utvalda deltagare kan svara.</p>
+                                        {% endif %}
+                                        <div class="comment-form">
+                                            <textarea class="form-control comment-input" rows="2" maxlength="500" placeholder="{% if not post.canComment %}Svarstråden är stängd.{% else %}Skriv en kommentar...{% endif %}" {% if not post.canComment %}disabled{% endif %}></textarea>
+                                            <div class="comment-image-url-wrap mt-2 d-none">
+                                                <input class="form-control comment-image-url-input" type="url" placeholder="Paste image URL (https://...)">
+                                            </div>
+                                            <div class="comment-emoji-picker d-none mt-2">
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">😀</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">😂</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">😍</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">🔥</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">🙏</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">👍</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">🎉</button>
+                                                <button class="btn btn-sm btn-outline-secondary comment-emoji-choice" type="button">💯</button>
+                                            </div>
+                                            <div class="comment-form-footer">
+                                                <div class="d-flex gap-2 align-items-center">
+                                                    <button class="btn btn-link text-secondary p-0 comment-image-toggle-btn" type="button"><i class="bi bi-image"></i></button>
+                                                    <button class="btn btn-link text-secondary p-0 comment-emoji-toggle-btn" type="button"><i class="bi bi-emoji-smile"></i></button>
+                                                    <small class="text-secondary comment-charcount">0/500</small>
+                                                </div>
+                                                <button class="btn btn-primary btn-sm rounded-pill comment-submit-btn" type="button" disabled {% if not post.canComment %}disabled{% endif %}>Kommentera</button>
+                                            </div>
+                                        </div>
+                                        {% else %}
+                                        <p class="text-secondary small mb-0">Logga in för att kommentera.</p>
+                                        {% endif %}
+                                    {% elif post.threadRestricted %}
+                                    <p class="text-secondary small mb-0">Den här tråden är utbruten till en privat diskussion.</p>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -174,10 +339,23 @@
                         <img src="{{ current_user.profile_image_url or default_avatar_url }}" alt="User avatar" class="post-avatar">
                         <div class="flex-grow-1">
                             <textarea class="form-control composer-textarea" id="postContent" placeholder="What do you want to echo?" maxlength="500"></textarea>
+                            <div id="composerImageUrlWrap" class="mt-2 d-none">
+                                <input class="form-control" id="postImageUrl" type="url" placeholder="Paste image URL (https://...)">
+                            </div>
+                            <div id="emojiPicker" class="emoji-picker d-none mt-2">
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">😀</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">😂</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">😍</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">🔥</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">🙏</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">👍</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">🎉</button>
+                                <button class="btn btn-sm btn-outline-secondary emoji-choice" type="button">💯</button>
+                            </div>
                             <div class="composer-actions mt-2">
                                 <div class="d-flex gap-2">
-                                    <button class="btn btn-link text-secondary"><i class="bi bi-image"></i></button>
-                                    <button class="btn btn-link text-secondary"><i class="bi bi-emoji-smile"></i></button>
+                                    <button class="btn btn-link text-secondary" id="toggleImageUrlBtn" type="button"><i class="bi bi-image"></i></button>
+                                    <button class="btn btn-link text-secondary" id="toggleEmojiPickerBtn" type="button"><i class="bi bi-emoji-smile"></i></button>
                                 </div>
                                 <div class="d-flex gap-2 align-items-center">
                                     <span class="text-secondary small" id="charCount">0/500</span>
@@ -187,6 +365,33 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if current_user.is_authenticated %}
+    <div class="modal fade" id="splitDiscussionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title">Bryt ut diskussion</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="splitDiscussionPostId">
+                    <div class="mb-3">
+                        <label for="splitDiscussionName" class="form-label">Namn på diskussion</label>
+                        <input type="text" id="splitDiscussionName" class="form-control" maxlength="255" placeholder="T.ex. Planering nästa steg">
+                    </div>
+                    <p class="small text-secondary mb-1">Välj vilka av kommentatorerna som ska följa med:</p>
+                    <p class="small text-secondary mb-2">Du läggs till automatiskt.</p>
+                    <div id="splitDiscussionParticipants" class="split-participants-list"></div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Avbryt</button>
+                    <button type="button" class="btn btn-primary rounded-pill" id="splitDiscussionSubmitBtn">Skapa grupp</button>
                 </div>
             </div>
         </div>
