@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/jwradhe/Echo#readme",
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
+    "@eslint/js": "^10.0.1",
     "@eslint/markdown": "^8.0.1",
     "eslint": "^10.2.1",
     "globals": "^17.5.0",
