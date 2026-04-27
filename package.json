@@ -34,6 +34,6 @@
     "globals": "^17.5.0",
     "newman": "^6.1.0",
     "start-server-and-test": "^3.0.2",
-    "typescript-eslint": "^8.59.0"
+    "typescript-eslint": "^8.59.1"
   }
 }
