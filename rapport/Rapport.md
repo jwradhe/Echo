@@ -2,7 +2,7 @@
 ## DevSecOps: Säker containeriserad webbapplikation
 
 **Kurs:** DevSecOps & Säker Infrastruktur  
-**Datum:** 2026-04-29 
+**Datum:** 2026-04-28 
 **Författare:** Christoffer Jörgensen & Jimmy Wrådhe  
 **Repo:** https://github.com/jwradhe/Echo  
 **Demo:** https://echo.wradhe.se
@@ -27,25 +27,213 @@
 
 Echo är en mikroblogg-webbapplikation byggd med Python och Flask där användare kan skapa inlägg, kommentera, följa varandra och bryta ut privata diskussionstrådar. Applikationen använder MySQL som databas och exponeras via en självhostad server på [echo.wradhe.se](https://echo.wradhe.se).
 
+Denna slutrapport beskriver vidareutvecklingen av Echo från en tidigare fungerande kursapplikation till en mer produktionsmässig tjänst enligt DevSecOps-principer. Arbetets fokus har varit säkerhet, containerisering, automatisering och driftsättning, där hotmodellering och riskanalys har kopplats till konkreta tekniska förändringar i kod, infrastruktur och pipeline.
+
 Applikationen är byggd från grunden inom ramen för kursen. Arbetet har skett iterativt — funktionalitet och säkerhet har vuxit fram parallellt i takt med att ny kunskap tillförts. Istället för att säkerhet behandlats som ett separat steg i slutet har det integrerats löpande under hela utvecklingsprocessen, i linje med principen *Shift Left*: hotmodellering, containerisering, säkerhetsscanning och automatiserad driftsättning har etablerats allteftersom vi lärt oss verktygen och metoderna.
 
 Resultatet är en fullständig webbapplikation med containeriserad driftsmiljö, automatiserad CI/CD-pipeline med inbyggd säkerhetsanalys och realtidsövervakning via Prometheus och Grafana.
 
-Rapporten beskriver hur applikationen växt fram och de tekniska beslut som fattats längs vägen.
+Rapporten redovisar både vilka tekniska val som gjorts och hur de valen kopplar till kraven för en säkrare, driftsatt och mer hållbar tjänst.
 
 ---
 
 ## 2. Arkitektur
+
+### Före slutprojekt
+
+Före slutprojektet var Echo i huvudsak utformat som en traditionell serverrenderad webbapplikation med Flask som backend, MySQL som databas och Jinja2 för HTML-rendering. Lösningen var funktionell och tydlig, men arkitekturen var primärt applikationscentrerad: affärslogik, route-hantering och felhantering låg nära varandra i samma lager, med begränsad separation mellan funktionella och operativa ansvar.
+
+Frontendlagret byggde på HTML-mallar, Bootstrap via CDN samt egen JavaScript för interaktiva moment. Datakommunikation skedde både via klassiska formulärflöden och via enklare JSON-endpoints. Ur utvecklingsperspektiv gav detta snabb iteration, men ur säkerhets- och driftsynpunkt blev flera kontroller implicit beroende av enskilda implementationer snarare än av gemensamma skyddsmekanismer.
+
+Driftsmässigt var lösningen i detta skede främst anpassad för lokal användning. Miljökonfiguration hanterades i `.env`, och teststöd fanns redan med `pytest`, `newman` och `playwright`. Samtidigt saknades en fullt sammanhållen leveranskedja där säkerhetskontroller, containerhärdning och deployment ingick som en konsekvent del av arkitekturen.
+
+**Arkitekturöversikt före förändringar:**
+
+```text
+Klient (webbläsare)
+  │
+  ▼
+Flask + Jinja2 (app-lager)
+  ├── Routes och affärslogik nära varandra
+  ├── Enklare JSON-endpoints
+  └── Grundläggande sessionshantering
+  │
+  ▼
+MySQL (lokal/utvecklingsfokus)
+```
+
+### Efter slutprojekt
+
+Under slutprojektet vidareutvecklades Echo till en helhetsorienterad DevSecOps-arkitektur där applikation, infrastruktur och leveranskedja behandlas som en sammanhängande teknisk lösning. Den grundläggande stacken (Flask, MySQL, Jinja2, JavaScript) behölls, men kompletterades med tydligare lager för säkerhet, observerbarhet, reproducerbar drift och automatiserad leverans.
+
+Arkitekturen omfattar nu fyra samverkande lager:
+
+- Applikationslager: Flask-app med separerade blåkopior, strukturerad loggning och endpoint-specifik rate limiting.
+- Datalager: MySQL med miljöseparerad konfiguration för utveckling, test och produktion.
+- Driftslager: Docker Compose med `web`, `db`, `prometheus`, `mysqld_exporter` och `grafana`.
+- Leveranslager: GitHub Actions för test (`tests.yml`), beroendeskanning (`sca.yml`) och deployment (`deploy.yml`).
+
+I förändringshistoriken mellan 2026-03-08 och 2026-04-28 framträder en stegvis mognad från funktionsutveckling till drift- och säkerhetshärdning. Funktioner som likes, bild/emoji-stöd, följ/följer och sök kompletterades med säkerhetsmekanismer (bland annat HTTP-säkerhetshuvuden, XSS-reducering och rate limiting), containerhärdning (multi-stage build, non-root user) samt utbyggd observability med Prometheus och Grafana.
+
+**Arkitekturöversikt efter förändringar:**
+
+```text
+         GitHub Actions
+   (tests.yml + sca.yml + deploy.yml)
+        │
+        ▼
+Klient ──► Reverse proxy/TLS ──► Flask (web)
+               │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+     MySQL            Prometheus         Strukturerad loggning
+        │                  │
+        └────────────► Grafana ◄───────────────┘
+```
+
+Förändringen innebär att arkitekturen inte längre enbart beskriver hur applikationen körs, utan även hur kvalitet, säkerhet och driftbarhet säkerställs över tid.
 
 
 ---
 
 ## 3. Hotmodellering
 
+### Metod och avgränsning
+
+Hotmodelleringen utgår från `SECURITY_RISK_ANALYSIS.md` och genomfördes med STRIDE som analysmetod samt OWASP Top 10 som klassificeringsstöd. Arbetet avgränsades till de attackytor som är mest relevanta för Echo i drift: autentisering, tillståndsförändrande endpoints, sessionshantering, klientnära rendering av användardata, containerkonfiguration och leveransflöde.
+
+**Metodflöde:**
+
+```text
+Systemavgränsning
+  │
+  ▼
+Identifiering av attackytor
+  │
+  ▼
+STRIDE-analys per komponent
+  │
+  ▼
+Riskvärdering (sannolikhet × konsekvens)
+  │
+  ▼
+Prioriterade åtgärder och implementation
+```
+
+### Identifierade attackytor
+
+Följande ytor bedömdes som mest kritiska:
+
+- Auth-flöden: `/login`, `/register`, session cookies.
+- API-routes för skrivande trafik: skapande av inlägg/svar, reaktioner och sociala interaktioner.
+- Frontend-JavaScript som renderar användargenererat innehåll.
+- Docker och nätverksexponering mellan `web` och `db`.
+- Miljövariabler/hemligheter i build- och deploykedjan.
+
+**Förenklat dataflöde för hotmodellering:**
+
+```text
+Användare
+  │
+  ├── POST /login, /register
+  ├── POST /api/posts, /api/posts/*
+  └── GET / (rendering av användargenererat innehåll)
+          │
+          ▼
+      Flask-applikation
+          │
+          ▼
+         MySQL
+```
+
+### Riskbild (sammanfattning)
+
+Riskanalysen identifierade flera återkommande mönster av hög prioritet:
+
+- Brute force och credential stuffing mot inloggning vid avsaknad av throttling.
+- XSS-risk vid osäker DOM-rendering (tidigare `innerHTML`-mönster).
+- Informationsläckage via alltför detaljerade felmeddelanden.
+- Security misconfiguration i HTTP-lagret (saknade headers/CSP/HSTS i tidigare läge).
+- Exponeringsrisker i containerdrift (databasport, root-exekvering, credential-hygien).
+
+Riskerna bedömdes med sannolikhet/konsekvens och prioriterades i nivåerna P1-P3. P1-åtgärderna användes som underlag för det första härdningssteget i kod och driftmiljö, medan P2/P3 dokumenterades för efterföljande iterationer.
+
+### Från analys till implementation
+
+Projektets styrka i slutskedet är att hotmodelleringen inte stannade vid teori. Flera tidigare identifierade HOT-områden omsattes till kod- och konfigurationsförändringar i samma period som feature-leveranserna:
+
+- HOT-01/HOT-08: rate limiting implementerades för auth och API.
+- HOT-02: osäker DOM-rendering ersattes med säkrare hantering i JavaScript.
+- HOT-03: felhantering hardenades med mindre exponerande felutdata.
+- HOT-04: säkerhetshuvuden lades till centralt i Flask.
+- HOT-05/HOT-13: containerhärdning genom portstrategi och non-root-körning.
+
+Den direkta kopplingen mellan identifierat hot, prioriterad åtgärd och faktisk implementation har varit avgörande för att säkerhetsarbetet skulle bli mätbart och spårbart.
+
 
 ---
 
 ## 4. Säkerhetsåtgärder
+
+### Översikt
+
+Säkerhetsarbetet i Echo har genomförts i flera lager: applikationskod, HTTP-lager, containerdrift och leveranspipeline. Åtgärderna har prioriterats utifrån riskanalysen och verifierats genom tester, konfigurationsgranskning och förändringshistorik i Git.
+
+**Åtgärdskedja från risk till drift:**
+
+```text
+Riskidentifiering (STRIDE/OWASP)
+          │
+          ▼
+Teknisk åtgärd i kod/konfiguration
+          │
+          ▼
+Verifiering i test/pipeline
+          │
+          ▼
+Driftsatt kontroll i produktion
+```
+
+### Implementerade åtgärder i applikationen
+
+**1. Rate limiting för auth och API**  
+Flask-Limiter har införts och kopplats till inloggning, registrering och API-trafik. Det minskar risken för brute force, credential stuffing och enklare DoS-spam mot skrivande endpoints.
+
+**2. Säkrare klient-IP bakom reverse proxy**  
+IP-hanteringen har gjorts proxy-aware med `ProxyFix` och anpassad `key_func` för limitering/loggning. Det säkerställer att rate limiting träffar verklig klient även bakom proxy.
+
+**3. HTTP-säkerhetshuvuden**  
+Centralt `after_request`-middleware sätter bl.a. CSP, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` och HSTS i produktion. Detta stärker skydd mot clickjacking, MIME-sniffing och viss script-missbruk.
+
+**4. XSS-reducering i frontend**  
+Frontendkod har justerats för säkrare rendering av användardata i deltagarvyer (från osäkra mönster till säkrare DOM-hantering), vilket direkt adresserar ett av de högst prioriterade hoten i analysen.
+
+**5. Felhantering och informationsläckage**  
+Felhantering i appen har härdats med tydligare felgränser och mer kontrollerad exponering av felinformation till slutanvändare, samtidigt som intern loggning bibehålls.
+
+**6. Strukturerad säkerhetsloggning och metrik**  
+Säkerhetsrelevanta händelser (exempelvis misslyckade inloggningar) fångas via strukturerad loggning och Prometheus-metriker, vilket förbättrar möjligheterna till upptäckt och uppföljning.
+
+### Implementerade åtgärder i container- och driftmiljö
+
+- Multi-stage Docker build minskar attackytan i runtime-image.
+- Applikationen körs som dedikerad non-root-användare i container.
+- Databasexponering styrs via miljövariabler och säkrare default-beteende.
+- Konfiguration och hemligheter separeras från kod via `.env`/GitHub Secrets.
+- Grafana/Prometheus-provisionering sker som kod och kan reproduceras säkert.
+
+### Implementerade åtgärder i CI/CD
+
+- Kvalitetsgrindar i `tests.yml` (lint + tester) på push/pull request.
+- SCA i `sca.yml` med `pip-audit` och `npm audit --omit=dev`.
+- Dependabot för kontinuerlig uppdatering av Python-, Node- och GitHub Actions-beroenden.
+- Deployment via `deploy.yml` efter godkänd kedja till `main`.
+
+### Kvarstående risker och förbättringar
+
+Alla åtgärder i riskanalysen är inte slutimplementerade ännu. Exempel på förbättringar för nästa iteration är full CSRF-tokenstrategi för alla relevanta formulärflöden, utökad secret scanning/SAST i samma säkerhetsworkflow samt ännu striktare sessionspolicy vid lång inaktivitet.
+
+Den övergripande trenden är dock tydlig: från punktvisa skydd till integrerad, pipelinebaserad säkerhet där kod, beroenden och driftmiljö kontrolleras kontinuerligt och med tydlig spårbarhet.
 
 ---
 
@@ -136,37 +324,29 @@ Triggas vid varje push och pull request, oavsett branch.
 
 Pipelinen startar en MySQL 8.0-service med healthcheck direkt i GitHub Actions-miljön och kör sedan följande steg i ordning:
 
-1. **Lint** — `flake8` för Python, `eslint` för JavaScript
+1. **Lint** — `ruff` för Python, `eslint` för JavaScript
 2. **Enhetstester och integrationstester** — `pytest` mot en riktig testdatabas
 3. **API-tester** — `newman` (Postman CLI) mot en körande Flask-instans
 4. **End-to-end-tester** — `playwright` i headless-läge
 
 Testmiljön konfigureras helt via miljövariabler och använder separata databasinställningar (`EchoDB_test`) för att inte påverka produktion.
 
-#### 6.2 Säkerhetspipeline (`security.yml`)
+#### 6.2 Säkerhetspipeline (`sca.yml`)
 
-Triggas vid push, pull request och schemalagt varje måndag kl. 06:00 UTC. Består av fyra parallella jobb:
+Triggas vid push, pull request och schemalagt varje måndag kl. 06:00 UTC.
+
+Nuvarande pipeline fokuserar på SCA (Software Composition Analysis) med två huvudsakliga steg:
 
 | Jobb | Verktyg | Vad som skannas |
 |---|---|---|
 | SCA | `pip-audit`, `npm audit` | Kända CVE:er i tredjepartsberoenden |
-| SAST | `bandit` | Statisk analys av Python-kod (SQL-injection, svag krypto m.m.) |
-| Secret scanning | `gitleaks` | Hårdkodade nycklar och hemligheter i git-historiken |
-| Container & IaC | `trivy` | Misconfigurationer i `Dockerfile` och `docker-compose.yml` |
 
 Den schemalagda körningen på måndagar fångar upp nya sårbarheter i beroenden även när ingen kod förändrats.
 
 **SCA — Software Composition Analysis:**
 `pip-audit` skannar `requirements.txt` mot PyPI Advisory Database. `npm audit` körs med `--omit=dev` eftersom alla Node-paket är testverktyg som aldrig driftsätts.
 
-**SAST — Static Application Security Testing:**
-`bandit` analyserar Python-koden i `app/`-mappen med flaggan `-ll` (medium och hög allvarlighetsgrad) och rapporterar fynd som SQL-injection-risker, osäker deserialisering och svaga hashfunktioner.
-
-**Secret scanning:**
-`gitleaks` hämtar hela git-historiken (`fetch-depth: 0`) och söker igenom varje commit efter mönster som matchar API-nycklar, lösenord och tokens.
-
-**Container & IaC-scanning:**
-`trivy` i `config`-läge analyserar Dockerfile och docker-compose.yml mot kända säkerhetsrekommendationer. Bygget bryts vid fynd med allvarlighetsgrad HIGH eller CRITICAL.
+I kombination med branch protection, testworkflows och Dependabot skapas en kontinuerlig säkerhetskontroll över beroenden i hela leveranskedjan.
 
 #### 6.3 Deployment-pipeline (`deploy.yml`)
 
@@ -183,7 +363,7 @@ Push till feature-branch
       PASS
         │
         ▼
-  security.yml ── FAIL → blockeras
+  sca.yml ─────── FAIL → blockeras
         │
       PASS
         │
@@ -421,3 +601,9 @@ Databasdata bevaras i Docker-volymer och påverkas inte av en omstart av contain
 ---
 
 ## 9. Slutlig reflektion
+
+Echo har under projektets gång utvecklats från en fungerande webbapplikation till en mer sammanhållen DevSecOps-leverans. Den största skillnaden är att säkerhet inte längre hanteras som en separat slutaktivitet, utan som en löpande del av utveckling, test och drift.
+
+Arbetet med hotmodellering gav en tydlig prioritering av risker och gjorde det möjligt att motivera vilka åtgärder som behövde implementeras först. I praktiken innebar detta att säkerhetshärdning kunde ske parallellt med funktionsutveckling (likes, media/emoji, follow/following, sök) utan att tappa leveranstakt.
+
+En viktig lärdom är att driftbarhet och säkerhet är nära kopplade: containerhärdning, secrets-hantering, observability och CI/CD-grindar bidrar tillsammans till robusthet. Projektet visar också värdet av versionshanterad infrastruktur och automatisering, där reproducerbarhet och spårbarhet förbättrar både kvalitet och incidentberedskap.
