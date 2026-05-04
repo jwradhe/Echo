@@ -30,7 +30,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@eslint/markdown": "^8.0.1",
-    "eslint": "^10.2.1",
+    "eslint": "^10.3.0",
     "globals": "^17.5.0",
     "newman": "^6.1.0",
     "start-server-and-test": "^3.0.2",
