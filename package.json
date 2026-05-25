@@ -29,7 +29,7 @@
   "homepage": "https://github.com/jwradhe/Echo#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@eslint/markdown": "^8.0.1",
+    "@eslint/markdown": "^8.0.2",
     "eslint": "^10.2.1",
     "globals": "^17.5.0",
     "newman": "^6.1.0",
