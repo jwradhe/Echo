@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout kod
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: SSH in och deploya
         uses: appleboy/ssh-action@v1
